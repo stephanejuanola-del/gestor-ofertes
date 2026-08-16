@@ -9,40 +9,40 @@ st.title("📊 Planificador d'Ofertes i Ocupació")
 
 # 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
-    "Ofertes França": ["Anna", "Marc"],
-    "Ofertes Recycling": ["Laura", "Jordi"],
-    "Ofertes Internacionals": ["Joan", "Carla", "Sara"]
+    "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria"],
+    "Ofertes Recycling": ["JordiVila", "RicardJoan", "Brendan", "Adria", "Samuel", "David"],
+    "Ofertes Internacionals": ["JordiVila", "RicardJoan", "Brendan", "Adria", "Samuel", "David", "IagoParga"]
 }
-
-# Creem una llista amb tots els noms per al formulari
-personal_total = [persona for sublista in equips.values() for persona in sublista]
 
 # 2. BASE DE DADES TEMPORAL
 if "ofertes" not in st.session_state:
     st.session_state.ofertes = pd.DataFrame(columns=["Projecte", "Departament", "Responsable", "Inici", "Final", "Documents"])
 
-# 3. FORMULARI LATERAL
-with st.sidebar.form("nova_oferta"):
-    st.header("➕ Nova Oferta")
-    nom_projecte = st.text_input("Nom del Projecte/Oferta")
-    responsable = st.selectbox("Personal assignat", personal_total)
-    data_inici = st.date_input("Data d'inici")
-    data_final = st.date_input("Data final")
-    documents = st.text_area("Documents a preparar")
-    guardar = st.form_submit_button("Guardar Oferta")
+# 3. MENÚ LATERAL (DINÀMIC)
+st.sidebar.header("➕ Nova Oferta")
+nom_projecte = st.sidebar.text_input("Nom del Projecte/Oferta")
 
-if guardar:
-    dept_assignat = next(dept for dept, pers in equips.items() if responsable in pers)
+# En triar el departament, el menú de sota s'actualitza sol
+departament = st.sidebar.selectbox("Departament de l'oferta", list(equips.keys()))
+responsable = st.sidebar.selectbox("Personal assignat", equips[departament])
+
+data_inici = st.sidebar.date_input("Data d'inici")
+data_final = st.sidebar.date_input("Data final")
+documents = st.sidebar.text_area("Documents a preparar")
+
+# Botó per guardar
+if st.sidebar.button("Guardar Oferta", type="primary"):
     nova_fila = {
         "Projecte": nom_projecte, 
-        "Departament": dept_assignat, 
+        "Departament": departament, 
         "Responsable": responsable, 
         "Inici": data_inici, 
         "Final": data_final, 
         "Documents": documents
     }
     st.session_state.ofertes = pd.concat([st.session_state.ofertes, pd.DataFrame([nova_fila])], ignore_index=True)
-    st.success("Oferta afegida!")
+    st.sidebar.success("✅ Oferta afegida correctament!")
+    st.rerun() # Refresquem la pantalla ràpidament
 
 # 4. FILTRES PER DEPARTAMENT
 st.subheader("🔍 Filtra per departament")
@@ -52,40 +52,50 @@ departaments_seleccionats = st.multiselect(
     default=list(equips.keys())
 )
 
-# Filtrem les dades segons els botons seleccionats
 df_filtrat = st.session_state.ofertes[st.session_state.ofertes["Departament"].isin(departaments_seleccionats)]
-personal_filtrat = [persona for dept in departaments_seleccionats for persona in equips[dept]]
 
 st.divider()
 
-# 5. BARRA D'OCUPACIÓ REAL
-st.subheader("🔥 Ocupació del Personal (Basat en capacitat mensual)")
-if personal_filtrat:
-    columnes = st.columns(len(personal_filtrat))
+# 5. BARRA D'OCUPACIÓ REAL (AGRUPADA PER DEPARTAMENTS)
+st.subheader("🔥 Ocupació del Personal (Basat en capacitat mensual de 21 dies)")
+
+if departaments_seleccionats:
     capacitat_mensual = 21 
     
-    for i, persona in enumerate(personal_filtrat):
-        ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
+    for dept in departaments_seleccionats:
+        st.markdown(f"#### 🏢 {dept}")
+        personal_dept = equips[dept]
+        columnes = st.columns(len(personal_dept))
         
-        total_dies_feina = 0
-        for _, fila in ofertes_persona.iterrows():
-            inici = pd.to_datetime(fila["Inici"]).date()
-            final = pd.to_datetime(fila["Final"]).date()
+        for i, persona in enumerate(personal_dept):
+            # Calculem només les ofertes D'AQUEST departament per a aquesta persona
+            ofertes_persona = st.session_state.ofertes[
+                (st.session_state.ofertes["Responsable"] == persona) & 
+                (st.session_state.ofertes["Departament"] == dept)
+            ]
             
-            dies_oferta = np.busday_count(inici, final) + 1
-            total_dies_feina += dies_oferta
+            total_dies_feina = 0
+            for _, fila in ofertes_persona.iterrows():
+                inici = pd.to_datetime(fila["Inici"]).date()
+                final = pd.to_datetime(fila["Final"]).date()
+                
+                dies_oferta = np.busday_count(inici, final) + 1
+                total_dies_feina += dies_oferta
+                
+            percentatge_real = int((total_dies_feina / capacitat_mensual) * 100)
+            percentatge_barra = min(percentatge_real, 100)
             
-        percentatge_real = int((total_dies_feina / capacitat_mensual) * 100)
-        percentatge_barra = min(percentatge_real, 100)
+            with columnes[i]:
+                # Mostrem clarament que els dies calculats pertanyen a aquest departament
+                st.metric(
+                    label=persona, 
+                    value=f"{percentatge_real}%", 
+                    delta=f"{total_dies_feina} dies aquí", 
+                    delta_color="off"
+                )
+                st.progress(percentatge_barra / 100.0)
         
-        with columnes[i]:
-            st.metric(
-                label=persona, 
-                value=f"{percentatge_real}%", 
-                delta=f"{total_dies_feina} dies ocupats", 
-                delta_color="off"
-            )
-            st.progress(percentatge_barra / 100.0)
+        st.write("") # Espai en blanc per separar departaments
 else:
     st.info("Selecciona com a mínim un departament per veure l'ocupació.")
 
@@ -105,7 +115,7 @@ if not df_filtrat.empty:
         y="Projecte", 
         color="Responsable",
         hover_data=["Departament", "Documents"],
-        title="Planificació de projectes"
+        title="Planificació de projectes per dates"
     )
     
     fig.update_yaxes(autorange="reversed")
