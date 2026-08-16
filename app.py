@@ -38,7 +38,7 @@ try:
     else:
         st.session_state.ofertes = pd.DataFrame(columns=["Projecte", "Departament", "Responsable", "Inici", "Final", "Documents"])
 except Exception as e:
-   st.error(f"⚠️ Error connectant a Google Sheets: {e}")
+    st.error(f"⚠️ Error connectant a Google Sheets: {e}")
     st.stop()
 
 # Funcions per moure's pel calendari
