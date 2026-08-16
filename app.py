@@ -8,7 +8,7 @@ st.set_page_config(page_title="Gestor d'Ofertes", layout="wide")
 st.title("📊 Planificador d'Ofertes i Ocupació")
 
 # Llista de personal (es pot connectar a una base de dades)
-personal = ["Anna", "Marc", "Laura", "Joan"]
+personal = ["Brendan Kerdaffreck", "Jordi Vila", "Olivier Ma", "Damien Pacaud", "Agustin Pomponio"]
 
 # Formulari per entrar noves ofertes
 with st.sidebar.form("nova_oferta"):
