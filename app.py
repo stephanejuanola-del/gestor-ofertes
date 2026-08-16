@@ -4,6 +4,9 @@ import numpy as np
 import plotly.express as px
 from datetime import datetime
 import calendar
+import json
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Gestor d'Ofertes", layout="wide")
 st.title("📊 Planificador d'Ofertes i Ocupació")
@@ -15,19 +18,36 @@ equips = {
     "Ofertes Internacionals": ["JordiVila", "RicardJoan", "Brendan", "Adria", "Samuel", "David", "IagoParga"]
 }
 
-# 2. INICIALITZACIÓ DE MEMÒRIA (Dades i Calendari)
-if "ofertes" not in st.session_state:
-    st.session_state.ofertes = pd.DataFrame(columns=["Projecte", "Departament", "Responsable", "Inici", "Final", "Documents"])
-    st.session_state.ofertes["Inici"] = pd.to_datetime(st.session_state.ofertes["Inici"])
-    st.session_state.ofertes["Final"] = pd.to_datetime(st.session_state.ofertes["Final"])
+# 2. CONNEXIÓ A GOOGLE SHEETS
+@st.cache_resource
+def connect_google_sheets():
+    creds_dict = json.loads(st.secrets["google_credentials"])
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    client = gspread.authorize(creds)
+    return client.open("Gestor_Ofertes").sheet1
 
+try:
+    sheet = connect_google_sheets()
+    dades_excel = sheet.get_all_records()
+    if dades_excel:
+        st.session_state.ofertes = pd.DataFrame(dades_excel)
+        # Convertir text a format data, ignorant errors si hi ha cel·les buides
+        st.session_state.ofertes["Inici"] = pd.to_datetime(st.session_state.ofertes["Inici"], errors='coerce')
+        st.session_state.ofertes["Final"] = pd.to_datetime(st.session_state.ofertes["Final"], errors='coerce')
+    else:
+        st.session_state.ofertes = pd.DataFrame(columns=["Projecte", "Departament", "Responsable", "Inici", "Final", "Documents"])
+except Exception as e:
+    st.error("⚠️ Error connectant a Google Sheets. Revisa les credencials.")
+    st.stop()
+
+# Funcions per moure's pel calendari
 avui = datetime.today()
 if "mes_vista" not in st.session_state:
     st.session_state.mes_vista = avui.month
 if "any_vista" not in st.session_state:
     st.session_state.any_vista = avui.year
 
-# Funcions per moure's pel calendari
 def canviar_mes(increment):
     nou_mes = st.session_state.mes_vista + increment
     nou_any = st.session_state.any_vista
@@ -43,25 +63,16 @@ def canviar_mes(increment):
 # 3. MENÚ LATERAL (FORMULARI)
 st.sidebar.header("➕ Nova Oferta")
 nom_projecte = st.sidebar.text_input("Nom del Projecte/Oferta")
-
 departament = st.sidebar.selectbox("Departament de l'oferta", list(equips.keys()))
 responsable = st.sidebar.selectbox("Personal assignat", equips[departament])
-
 data_inici = st.sidebar.date_input("Data d'inici")
 data_final = st.sidebar.date_input("Data final")
 documents = st.sidebar.text_area("Documents a preparar")
 
 if st.sidebar.button("Guardar Oferta", type="primary"):
-    nova_fila = {
-        "Projecte": nom_projecte, 
-        "Departament": departament, 
-        "Responsable": responsable, 
-        "Inici": pd.to_datetime(data_inici), 
-        "Final": pd.to_datetime(data_final), 
-        "Documents": documents
-    }
-    st.session_state.ofertes = pd.concat([st.session_state.ofertes, pd.DataFrame([nova_fila])], ignore_index=True)
-    st.sidebar.success("✅ Oferta afegida correctament!")
+    nova_fila = [nom_projecte, departament, responsable, str(data_inici), str(data_final), documents]
+    sheet.append_row(nova_fila) # S'envia directe a Google Sheets
+    st.sidebar.success("✅ Oferta guardada a l'Excel!")
     st.rerun()
 
 # 4. NAVEGACIÓ DEL CALENDARI
@@ -77,7 +88,6 @@ with col_centre:
 with col_dreta:
     st.button("Mes Següent ➡️", on_click=canviar_mes, args=(1,), use_container_width=True)
 
-# Càlcul de dies de treball per al mes seleccionat
 ultim_dia = calendar.monthrange(st.session_state.any_vista, st.session_state.mes_vista)[1]
 inici_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01").date()
 final_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}").date()
@@ -94,10 +104,9 @@ departaments_seleccionats = st.multiselect(
     default=list(equips.keys())
 )
 df_filtrat = st.session_state.ofertes[st.session_state.ofertes["Departament"].isin(departaments_seleccionats)]
-
 st.divider()
 
-# 6. BARRA D'OCUPACIÓ REAL (LLIGADA AL MES SELECCIONAT)
+# 6. BARRA D'OCUPACIÓ REAL
 st.subheader(f"🔥 Ocupació del Personal ({nom_mes_actual} {st.session_state.any_vista})")
 
 if departaments_seleccionats:
@@ -115,7 +124,6 @@ if departaments_seleccionats:
                     inici_oferta = pd.to_datetime(fila["Inici"]).date()
                     final_oferta = pd.to_datetime(fila["Final"]).date()
                     
-                    # Intersequem les dates de l'oferta amb les dates del mes triat
                     inici_real = max(inici_oferta, inici_mes_dt)
                     final_real = min(final_oferta, final_mes_dt)
                     
@@ -140,7 +148,7 @@ else:
 
 st.divider()
 
-# 7. CALENDARI VISUAL EN FORMA DE QUADRÍCULA (NOMÉS MOSTRA EL MES ACTUAL)
+# 7. CALENDARI VISUAL
 st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
 if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
@@ -157,7 +165,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         )
         
         fig.update_traces(width=0.4)
-        
         fig.update_layout(
             plot_bgcolor='white',
             xaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
@@ -166,27 +173,27 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             showlegend=True
         )
         
-        # Opcions de vista de calendari: Fixem l'eix X exclusivament al mes triat
         data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
         data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
         
         fig.update_xaxes(
             range=[data_inici_text, data_final_text],
-            tickformat="%d %b", # Mostra el dia i el mes a cada columna
-            dtick=86400000,     # Força que hi hagi una ratlla per cada dia
-            rangebreaks=[dict(bounds=["sat", "mon"])] # Amaga els caps de setmana
+            tickformat="%d %b",
+            dtick=86400000,
+            rangebreaks=[dict(bounds=["sat", "mon"])]
         )
             
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
+        st.warning("Has de posar dates d'inici i final a les ofertes.")
 else:
-    st.warning(f"No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
+    st.warning("No hi ha cap oferta que es pugui visualitzar.")
 
-# 8. TAULA EDITABLE
-with st.expander("✏️ Base de dades d'Ofertes completa (Clica per obrir i editar)"):
-    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Els canvis es guarden al moment.")
-    st.session_state.ofertes = st.data_editor(
+# 8. TAULA EDITABLE AMB SINCRONITZACIÓ A GOOGLE SHEETS
+with st.expander("✏️ Base de dades d'Ofertes completa"):
+    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Quan acabis, prem el botó de sota per guardar els canvis a Google Sheets.")
+    
+    df_editat = st.data_editor(
         st.session_state.ofertes,
         use_container_width=True,
         num_rows="dynamic",
@@ -196,3 +203,18 @@ with st.expander("✏️ Base de dades d'Ofertes completa (Clica per obrir i edi
             "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys())),
         }
     )
+    
+    if st.button("💾 Desar canvis manuals a Google Sheets"):
+        # Converteix les dates a text perquè Google Sheets les entengui
+        df_per_guardar = df_editat.copy()
+        df_per_guardar['Inici'] = df_per_guardar['Inici'].dt.strftime('%Y-%m-%d')
+        df_per_guardar['Final'] = df_per_guardar['Final'].dt.strftime('%Y-%m-%d')
+        df_per_guardar.fillna("", inplace=True) # Omple espais buits
+        
+        # Sobreescriu l'Excel amb les dades actualitzades
+        sheet.clear()
+        llista_dades = [df_per_guardar.columns.values.tolist()] + df_per_guardar.values.tolist()
+        sheet.update(llista_dades)
+        
+        st.success("✅ Canvis guardats correctament a l'Excel!")
+        st.rerun()
