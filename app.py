@@ -14,7 +14,7 @@ st.title("📊 Planificador d'Ofertes i Ocupació")
 
 # --- CONFIGURACIÓ DE GOOGLE CALENDAR ---
 # Reemplaça aquest valor pel teu ID de Google Calendar (ex: "el_teu_correu@gmail.com" o un ID llarg)
-CALENDAR_ID = "el_teu_correu@gmail.com"
+CALENDAR_ID = "https://calendar.google.com/calendar/embed?src=sjuanola%40bianna.com&ctz=Europe%2FMadrid"
 
 # 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
