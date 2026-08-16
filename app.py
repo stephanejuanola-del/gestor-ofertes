@@ -11,15 +11,6 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="Gestor d'Ofertes", layout="wide")
 st.title("📊 Planificador d'Ofertes i Ocupació")
 
-# --- NOU: LLISTA DE FESTIUS GLOBALS DE L'EMPRESA ---
-# Modifica aquestes dates amb els festius reals del teu calendari laboral (Format: AAAA-MM-DD)
-festius_empresa = [
-    "2026-01-01", "2026-01-06", "2026-04-06", "2026-05-01", 
-    "2026-06-24", "2026-08-15", "2026-09-11", "2026-10-12", 
-    "2026-11-01", "2026-12-06", "2026-12-08", "2026-12-25", "2026-12-26"
-]
-festius_np = [pd.to_datetime(f).date() for f in festius_empresa]
-
 # 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
     "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria"],
@@ -49,6 +40,17 @@ except Exception as e:
     st.error(f"⚠️ Error connectant a Google Sheets: {e}")
     st.stop()
 
+# --- NOU: DETECCIÓ DINÀMICA DE FESTIUS DES DE L'EXCEL ---
+festius_empresa = []
+if not st.session_state.ofertes.empty:
+    # Busquem totes les línies on el departament s'hagi guardat com a "Festiu Empresa"
+    df_festius = st.session_state.ofertes[st.session_state.ofertes["Departament"] == "Festiu Empresa"]
+    for _, fila in df_festius.iterrows():
+        if pd.notnull(fila["Inici"]) and pd.notnull(fila["Final"]):
+            dies = pd.date_range(start=fila["Inici"], end=fila["Final"]).date
+            festius_empresa.extend(dies)
+festius_np = list(set(festius_empresa)) # Convertim a llista única sense duplicats
+
 # Funcions per moure's pel calendari
 avui = datetime.today()
 if "mes_vista" not in st.session_state:
@@ -68,21 +70,38 @@ def canviar_mes(increment):
     st.session_state.mes_vista = nou_mes
     st.session_state.any_vista = nou_any
 
-# 3. MENÚ LATERAL (FORMULARI)
+# 3. MENÚ LATERAL (FORMULARIS)
 st.sidebar.header("➕ Nova Oferta / Vacances")
 st.sidebar.info("💡 Si el projecte es diu 'Vacances', es pintarà de color gris fosc automàticament.")
-nom_projecte = st.sidebar.text_input("Nom del Projecte (Ex: Vacances Agost)")
-departament = st.sidebar.selectbox("Departament de l'oferta", list(equips.keys()))
-responsable = st.sidebar.selectbox("Personal assignat", equips[departament])
-data_inici = st.sidebar.date_input("Data d'inici")
-data_final = st.sidebar.date_input("Data final")
-documents = st.sidebar.text_area("Documents a preparar")
 
-if st.sidebar.button("Guardar Registre", type="primary"):
-    nova_fila = [nom_projecte, departament, responsable, str(data_inici), str(data_final), documents]
-    sheet.append_row(nova_fila)
-    st.sidebar.success("✅ Guardat correctament a l'Excel!")
-    st.rerun()
+with st.sidebar.form("form_ofertes"):
+    nom_projecte = st.text_input("Nom del Projecte (Ex: Vacances Agost)")
+    departament = st.selectbox("Departament de l'oferta", list(equips.keys()))
+    responsable = st.selectbox("Personal assignat", equips[departament])
+    data_inici = st.date_input("Data d'inici")
+    data_final = st.date_input("Data final")
+    documents = st.text_area("Documents a preparar")
+    
+    if st.form_submit_button("Guardar Registre", type="primary"):
+        nova_fila = [nom_projecte, departament, responsable, str(data_inici), str(data_final), documents]
+        sheet.append_row(nova_fila)
+        st.success("✅ Guardat correctament a l'Excel!")
+        st.rerun()
+
+st.sidebar.divider()
+st.sidebar.header("🏢 Nou Festiu d'Empresa")
+with st.sidebar.form("form_festius"):
+    st.write("Afegeix un dia o període on l'empresa està tancada per a tothom.")
+    nom_festiu = st.text_input("Motiu (Ex: Nadal, Pont Puríssima)")
+    inici_festiu = st.date_input("Data d'inici del festiu")
+    final_festiu = st.date_input("Data final del festiu")
+    
+    if st.form_submit_button("Guardar Festiu Empresa", type="primary"):
+        # Es guarda a l'Excel amb una "etiqueta" especial perquè el programa sàpiga que és festiu
+        nova_fila = [nom_festiu, "Festiu Empresa", "TOTS", str(inici_festiu), str(final_festiu), ""]
+        sheet.append_row(nova_fila)
+        st.success("✅ Festiu guardat correctament!")
+        st.rerun()
 
 # 4. NAVEGACIÓ DEL CALENDARI I CÀLCUL DE DIES
 st.divider()
@@ -101,10 +120,10 @@ ultim_dia = calendar.monthrange(st.session_state.any_vista, st.session_state.mes
 inici_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01").date()
 final_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}").date()
 
-# Càlcul precís que ja descompta els caps de setmana i ELS FESTIUS GLOBALS
+# Càlcul precís que ja descompta els caps de setmana i ELS FESTIUS LLEGITS DE L'EXCEL
 dies_habils_mes = np.busday_count(inici_mes_dt, final_mes_dt + pd.Timedelta(days=1), holidays=festius_np)
 
-st.markdown(f"<p style='text-align: center; color: gray;'>Aquest mes té <b>{dies_habils_mes} dies hàbils</b> de treball efectiu (descomptant caps de setmana i festius).</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: gray;'>Aquest mes té <b>{dies_habils_mes} dies hàbils</b> de treball efectiu (descomptant caps de setmana i festius globals).</p>", unsafe_allow_html=True)
 st.divider()
 
 # 5. FILTRES
@@ -114,6 +133,7 @@ departaments_seleccionats = st.multiselect(
     options=list(equips.keys()), 
     default=list(equips.keys())
 )
+# Filtrem només els departaments triats (ignorem els "Festiu Empresa" perquè no surtin a les ofertes del calendari com una feina més)
 df_filtrat = st.session_state.ofertes[st.session_state.ofertes["Departament"].isin(departaments_seleccionats)]
 st.divider()
 
@@ -174,14 +194,13 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         df_net = df_net.sort_values(by=["Departament", "Responsable"], ascending=[False, False])
         
-        # --- NOU: DETECCIÓ DE VACANCES PER FORÇAR EL COLOR ---
+        # DETECCIÓ DE VACANCES PER FORÇAR EL COLOR A LES OFERTES PERSONALS
         df_net["Categoria_Color"] = df_net.apply(
             lambda row: "Vacances" if "vacances" in str(row["Projecte"]).lower() 
             else (row["Projecte"] if estil_grafic == "Vista per Personal (Estil Recursos)" else row["Responsable"]),
             axis=1
         )
         
-        # El diccionari de colors (les vacances sempre gris fosc, la resta ho tria automàtic)
         mapa_colors = {"Vacances": "dimgray"}
         
         if estil_grafic == "Vista per Personal (Estil Recursos)":
@@ -229,7 +248,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
         
-        # 7.1 OMBREJAT GRIS PELS CAPS DE SETMANA (Gris clar)
+        # OMBREJAT GRIS PELS CAPS DE SETMANA (Gris clar)
         caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
         for dia in caps_de_setmana:
             fig.add_vrect(
@@ -237,18 +256,15 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
             )
             
-        # 7.2 OMBREJAT PELS FESTIUS GLOBALS (Gris Fosc)
-        for festiu in festius_empresa:
-            festiu_dt = pd.to_datetime(festiu)
-            # Dibuixem el festiu només si forma part del mes que estem veient
+        # OMBREJAT PELS FESTIUS GLOBALS LLEGITS DE L'EXCEL (Gris fosc)
+        for festiu_dt in festius_np:
             if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
                 fig.add_vrect(
-                    x0=festiu_dt, x1=festiu_dt + pd.Timedelta(days=1), 
+                    x0=festiu_dt, x1=pd.to_datetime(festiu_dt) + pd.Timedelta(days=1), 
                     fillcolor="dimgray", opacity=0.6, layer="below", line_width=0,
                     annotation_text="FESTIU", annotation_position="top right"
                 )
         
-        # Línia negra separant setmanes
         dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         for dilluns in dilluns_mes:
             fig.add_vline(x=dilluns, line_width=2, line_color="black")
@@ -261,7 +277,7 @@ else:
 
 # 8. TAULA EDITABLE AMB SINCRONITZACIÓ A GOOGLE SHEETS
 with st.expander("✏️ Base de dades completa (Clica per obrir i editar)"):
-    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Quan acabis, prem el botó de sota per guardar els canvis a Google Sheets.")
+    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Pots gestionar els festius globals aquí també.")
     
     df_editat = st.data_editor(
         st.session_state.ofertes,
@@ -270,7 +286,8 @@ with st.expander("✏️ Base de dades completa (Clica per obrir i editar)"):
         column_config={
             "Inici": st.column_config.DateColumn("Data Inici", format="YYYY-MM-DD"),
             "Final": st.column_config.DateColumn("Data Final", format="YYYY-MM-DD"),
-            "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys())),
+            # Afegim "Festiu Empresa" a la llista d'opcions perquè no doni error en editar un festiu
+            "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys()) + ["Festiu Empresa"]),
         }
     )
     
