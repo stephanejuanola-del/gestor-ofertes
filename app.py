@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-# 5. BARRA D'OCUPACIÓ REAL (Només del personal filtrat)
 st.subheader("🔥 Ocupació del Personal (Basat en capacitat mensual)")
 if personal_filtrat:
     columnes = st.columns(len(personal_filtrat))
