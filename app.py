@@ -2,7 +2,47 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from datetime import datetime
+# 5. BARRA D'OCUPACIÓ REAL (Només del personal filtrat)
+st.subheader("🔥 Ocupació del Personal (Basat en capacitat mensual)")
+if personal_filtrat:
+    columnes = st.columns(len(personal_filtrat))
+    
+    # Definim quants dies feiners té un mes mitjà per calcular el 100%
+    capacitat_mensual = 21 
+    
+    for i, persona in enumerate(personal_filtrat):
+        # Busquem totes les ofertes d'aquesta persona
+        ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
+        
+        total_dies_feina = 0
+        for _, fila in ofertes_persona.iterrows():
+            # Assegurem que les dates estan en el format correcte per calcular
+            inici = pd.to_datetime(fila["Inici"]).date()
+            final = pd.to_datetime(fila["Final"]).date()
+            
+            # np.busday_count calcula els dies de dilluns a divendres. 
+            # Hi sumem 1 dia perquè la data final també compta com a dia treballat.
+            dies_oferta = np.busday_count(inici, final) + 1
+            total_dies_feina += dies_oferta
+            
+        # Calculem el % d'ocupació
+        percentatge_real = int((total_dies_feina / capacitat_mensual) * 100)
+        
+        # Streamlit necessita que la barra de progrés estigui entre 0.0 i 1.0 (màxim 100%)
+        # Si algú passa del 100%, la barra es quedarà plena, però el número mostrarà el % real
+        percentatge_barra = min(percentatge_real, 100)
+        
+        with columnes[i]:
+            # Mostrem el percentatge i, a sota, els dies totals que suma
+            st.metric(
+                label=persona, 
+                value=f"{percentatge_real}%", 
+                delta=f"{total_dies_feina} dies ocupats", 
+                delta_color="off"
+            )
+            st.progress(percentatge_barra / 100.0)
+else:
+    st.info("Selecciona com a mínim un departament per veure l'ocupació.")
 
 st.set_page_config(page_title="Gestor d'Ofertes", layout="wide")
 st.title("📊 Planificador d'Ofertes i Ocupació")
