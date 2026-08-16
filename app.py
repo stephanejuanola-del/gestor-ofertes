@@ -15,11 +15,30 @@ equips = {
     "Ofertes Internacionals": ["JordiVila", "RicardJoan", "Brendan", "Adria", "Samuel", "David", "IagoParga"]
 }
 
-# 2. BASE DE DADES TEMPORAL
+# 2. INICIALITZACIÓ DE MEMÒRIA (Dades i Calendari)
 if "ofertes" not in st.session_state:
     st.session_state.ofertes = pd.DataFrame(columns=["Projecte", "Departament", "Responsable", "Inici", "Final", "Documents"])
     st.session_state.ofertes["Inici"] = pd.to_datetime(st.session_state.ofertes["Inici"])
     st.session_state.ofertes["Final"] = pd.to_datetime(st.session_state.ofertes["Final"])
+
+avui = datetime.today()
+if "mes_vista" not in st.session_state:
+    st.session_state.mes_vista = avui.month
+if "any_vista" not in st.session_state:
+    st.session_state.any_vista = avui.year
+
+# Funcions per moure's pel calendari
+def canviar_mes(increment):
+    nou_mes = st.session_state.mes_vista + increment
+    nou_any = st.session_state.any_vista
+    if nou_mes > 12:
+        nou_mes = 1
+        nou_any += 1
+    elif nou_mes < 1:
+        nou_mes = 12
+        nou_any -= 1
+    st.session_state.mes_vista = nou_mes
+    st.session_state.any_vista = nou_any
 
 # 3. MENÚ LATERAL (FORMULARI)
 st.sidebar.header("➕ Nova Oferta")
@@ -45,39 +64,27 @@ if st.sidebar.button("Guardar Oferta", type="primary"):
     st.sidebar.success("✅ Oferta afegida correctament!")
     st.rerun()
 
-# --- NOU: SELECCIÓ DE MES PER A L'ANÀLISI ---
-st.subheader("🗓️ Selecciona el mes a analitzar")
-col_mes, col_any, col_buit = st.columns([1, 1, 2])
+# 4. NAVEGACIÓ DEL CALENDARI
+st.divider()
 mesos_noms = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"]
-avui = datetime.today()
+nom_mes_actual = mesos_noms[st.session_state.mes_vista - 1]
 
-amb_mes = col_mes.selectbox("Mes", mesos_noms, index=avui.month - 1)
-amb_any = col_any.number_input("Any", min_value=2024, max_value=2030, value=avui.year)
+col_esquerra, col_centre, col_dreta = st.columns([1, 2, 1])
+with col_esquerra:
+    st.button("⬅️ Mes Anterior", on_click=canviar_mes, args=(-1,), use_container_width=True)
+with col_centre:
+    st.markdown(f"<h3 style='text-align: center;'>🗓️ {nom_mes_actual} {st.session_state.any_vista}</h3>", unsafe_allow_html=True)
+with col_dreta:
+    st.button("Mes Següent ➡️", on_click=canviar_mes, args=(1,), use_container_width=True)
 
-mes_num = mesos_noms.index(amb_mes) + 1
-ultim_dia = calendar.monthrange(amb_any, mes_num)[1]
-
-# Calculem exactament quants dies laborables (dilluns-divendres) té aquest mes
-inici_mes_dt = pd.to_datetime(f"{amb_any}-{mes_num:02d}-01").date()
-final_mes_dt = pd.to_datetime(f"{amb_any}-{mes_num:02d}-{ultim_dia}").date()
+# Càlcul de dies de treball per al mes seleccionat
+ultim_dia = calendar.monthrange(st.session_state.any_vista, st.session_state.mes_vista)[1]
+inici_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01").date()
+final_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}").date()
 dies_habils_mes = np.busday_count(inici_mes_dt, final_mes_dt + pd.Timedelta(days=1))
 
-st.info(f"💡 El mes de **{amb_mes} de {amb_any}** té un total de **{dies_habils_mes} dies hàbils** de treball (sense comptar caps de setmana).")
+st.markdown(f"<p style='text-align: center; color: gray;'>Aquest mes té <b>{dies_habils_mes} dies hàbils</b> de treball.</p>", unsafe_allow_html=True)
 st.divider()
-
-# 4. TAULA EDITABLE
-with st.expander("✏️ Base de dades d'Ofertes (Clica per obrir i editar)"):
-    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal.")
-    st.session_state.ofertes = st.data_editor(
-        st.session_state.ofertes,
-        use_container_width=True,
-        num_rows="dynamic",
-        column_config={
-            "Inici": st.column_config.DateColumn("Data Inici", format="YYYY-MM-DD"),
-            "Final": st.column_config.DateColumn("Data Final", format="YYYY-MM-DD"),
-            "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys())),
-        }
-    )
 
 # 5. FILTRES
 st.subheader("🔍 Filtra per departament")
@@ -86,12 +93,12 @@ departaments_seleccionats = st.multiselect(
     options=list(equips.keys()), 
     default=list(equips.keys())
 )
-
 df_filtrat = st.session_state.ofertes[st.session_state.ofertes["Departament"].isin(departaments_seleccionats)]
+
 st.divider()
 
-# 6. BARRA D'OCUPACIÓ REAL (SEGONS EL MES SELECCIONAT)
-st.subheader(f"🔥 Ocupació del Personal ({amb_mes} {amb_any})")
+# 6. BARRA D'OCUPACIÓ REAL (LLIGADA AL MES SELECCIONAT)
+st.subheader(f"🔥 Ocupació del Personal ({nom_mes_actual} {st.session_state.any_vista})")
 
 if departaments_seleccionats:
     for dept in departaments_seleccionats:
@@ -112,7 +119,6 @@ if departaments_seleccionats:
                     inici_real = max(inici_oferta, inici_mes_dt)
                     final_real = min(final_oferta, final_mes_dt)
                     
-                    # Només sumem si l'oferta cau dins d'aquest mes
                     if inici_real <= final_real:
                         dies = np.busday_count(inici_real, final_real + pd.Timedelta(days=1))
                         total_dies_mes += dies
@@ -134,10 +140,8 @@ else:
 
 st.divider()
 
-# 7. CALENDARI VISUAL (GANTT) - QUADRÍCULA I BARRES FINES
-st.subheader("📅 Calendari d'Ofertes")
-
-vista = st.radio("Tipus de visualització del calendari:", ["Vista Mensual (Mes sencer)", "Vista Setmanal (Detall de dies)"], horizontal=True)
+# 7. CALENDARI VISUAL EN FORMA DE QUADRÍCULA (NOMÉS MOSTRA EL MES ACTUAL)
+st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
 if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
     df_net = df_filtrat.dropna(subset=["Inici", "Final"]).copy()
@@ -152,10 +156,8 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             hover_data=["Departament", "Documents"]
         )
         
-        # Fem les barres més estretes
         fig.update_traces(width=0.4)
         
-        # Creem la quadrícula d'estil calendari/Project
         fig.update_layout(
             plot_bgcolor='white',
             xaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
@@ -164,25 +166,33 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             showlegend=True
         )
         
-        # Opcions de vista de calendari
-        if vista == "Vista Mensual (Mes sencer)":
-            # Forcem que es vegi exactament des del dia 1 fins a l'últim del mes seleccionat
-            fig.update_xaxes(
-                range=[f"{amb_any}-{mes_num:02d}-01", f"{amb_any}-{mes_num:02d}-{ultim_dia}"],
-                tickformat="%d %b",
-                dtick=86400000, # Tick cada dia perquè es vegi la quadrícula diària
-                rangebreaks=[dict(bounds=["sat", "mon"])] # Amaga el cap de setmana
-            )
-        else:
-            # Vista setmanal més lliure, però mostrant el nom del dia (Dilluns, Dimarts...)
-            fig.update_xaxes(
-                tickformat="%A<br>%d %b",
-                dtick=86400000,
-                rangebreaks=[dict(bounds=["sat", "mon"])]
-            )
+        # Opcions de vista de calendari: Fixem l'eix X exclusivament al mes triat
+        data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
+        data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
+        
+        fig.update_xaxes(
+            range=[data_inici_text, data_final_text],
+            tickformat="%d %b", # Mostra el dia i el mes a cada columna
+            dtick=86400000,     # Força que hi hagi una ratlla per cada dia
+            rangebreaks=[dict(bounds=["sat", "mon"])] # Amaga els caps de setmana
+        )
             
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
 else:
-    st.warning("No hi ha cap oferta registrada en els departaments seleccionats per mostrar al calendari.")
+    st.warning(f"No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
+
+# 8. TAULA EDITABLE
+with st.expander("✏️ Base de dades d'Ofertes completa (Clica per obrir i editar)"):
+    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Els canvis es guarden al moment.")
+    st.session_state.ofertes = st.data_editor(
+        st.session_state.ofertes,
+        use_container_width=True,
+        num_rows="dynamic",
+        column_config={
+            "Inici": st.column_config.DateColumn("Data Inici", format="YYYY-MM-DD"),
+            "Final": st.column_config.DateColumn("Data Final", format="YYYY-MM-DD"),
+            "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys())),
+        }
+    )
