@@ -33,8 +33,7 @@ st.subheader("🔥 Ocupació del Personal (Aquest mes)")
 # Càlcul simulat d'ocupació (es pot ajustar segons els dies feiners de les ofertes)
 ocupacio_simulada = np.random.randint(40, 95, size=len(personal)) 
 
-col1, col2, col3, col4 = st.columns(4)
-columnes = [col1, col2, col3, col4]
+columnes = st.columns(len(personal))
 
 for i, persona in enumerate(personal):
     with columnes[i]:
