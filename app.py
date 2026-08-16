@@ -205,6 +205,18 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
     df_net = df_filtrat.dropna(subset=["Inici", "Final"]).copy()
     
     if not df_net.empty:
+        # 1. Limpieza de nombres para unificar colores (elimina espacios accidentales)
+        df_net["Projecte"] = df_net["Projecte"].astype(str).str.strip()
+        df_net["Responsable"] = df_net["Responsable"].astype(str).str.strip()
+
+        # 2. Corrección de fechas de 1 solo día (para que la barra tenga ancho visible)
+        df_net["Final_Grafic"] = pd.to_datetime(df_net["Final"])
+        df_net["Inici_Grafic"] = pd.to_datetime(df_net["Inici"])
+        
+        # Si inicio y fin coinciden, le añadimos 1 día para que ocupe la casilla completa
+        mask_mismo_dia = df_net["Inici_Grafic"] == df_net["Final_Grafic"]
+        df_net.loc[mask_mismo_dia, "Final_Grafic"] = df_net.loc[mask_mismo_dia, "Final_Grafic"] + pd.Timedelta(days=1)
+
         estil_grafic = st.radio(
             "Tria l'estil de visualització:", 
             ["Vista per Personal (Estil Recursos)", "Vista per Projectes (Estil Gantt)"], 
@@ -225,8 +237,8 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         if estil_grafic == "Vista per Personal (Estil Recursos)":
             fig = px.timeline(
                 df_net, 
-                x_start="Inici", 
-                x_end="Final", 
+                x_start="Inici_Grafic", 
+                x_end="Final_Grafic", 
                 y="Responsable", 
                 color="Categoria_Color", 
                 color_discrete_map=mapa_colors,
@@ -237,8 +249,8 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         else:
             fig = px.timeline(
                 df_net, 
-                x_start="Inici", 
-                x_end="Final", 
+                x_start="Inici_Grafic", 
+                x_end="Final_Grafic", 
                 y="Projecte", 
                 color="Categoria_Color",
                 color_discrete_map=mapa_colors, 
@@ -275,10 +287,9 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
             )
             
-        # --- CORRECCIÓ: OMBREJAT PELS FESTIUS GLOBALS ---
+        # OMBREJAT PELS FESTIUS GLOBALS LLEGITS DE L'EXCEL (Gris fosc)
         for festiu_dt in festius_np:
             if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
-                # Convertim explícitament al format Timestamp de Pandas perquè el gràfic no falli
                 f_inici = pd.to_datetime(festiu_dt)
                 f_final = f_inici + pd.Timedelta(days=1)
                 
