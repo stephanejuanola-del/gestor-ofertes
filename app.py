@@ -256,11 +256,15 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
             )
             
-        # OMBREJAT PELS FESTIUS GLOBALS LLEGITS DE L'EXCEL (Gris fosc)
+        # --- CORRECCIÓ: OMBREJAT PELS FESTIUS GLOBALS ---
         for festiu_dt in festius_np:
             if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
+                # Convertim explícitament al format Timestamp de Pandas perquè el gràfic no falli
+                f_inici = pd.to_datetime(festiu_dt)
+                f_final = f_inici + pd.Timedelta(days=1)
+                
                 fig.add_vrect(
-                    x0=festiu_dt, x1=pd.to_datetime(festiu_dt) + pd.Timedelta(days=1), 
+                    x0=f_inici, x1=f_final, 
                     fillcolor="dimgray", opacity=0.6, layer="below", line_width=0,
                     annotation_text="FESTIU", annotation_position="top right"
                 )
