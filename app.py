@@ -184,8 +184,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 hover_data=["Departament", "Documents"]
             )
         
-        # --- CANVI D'AMPLADA ---
-        # Ara les barres ocupen el 85% de l'alçada de la fila, omplint millor la graella
         fig.update_traces(width=0.85)
         
         fig.update_layout(
@@ -200,16 +198,32 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
         data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
         
+        # ATENCIÓ: Hem tret la funció d'amagar el cap de setmana perquè es pugui veure
         fig.update_xaxes(
             range=[data_inici_text, data_final_text],
             tickformat="%d %b", 
-            dtick=86400000,     
-            rangebreaks=[dict(bounds=["sat", "mon"])]
+            dtick=86400000     
         )
         
         dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
-        dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         
+        # --- NOU: OMBREJAT GRIS PELS CAPS DE SETMANA ---
+        # Busquem quins dies cauen en dissabte (5) o diumenge (6)
+        caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
+        
+        for dia in caps_de_setmana:
+            # Dibuixem un fons gris darrere de cada dia de cap de setmana
+            fig.add_vrect(
+                x0=dia, 
+                x1=dia + pd.Timedelta(days=1), 
+                fillcolor="lightgray", 
+                opacity=0.4, 
+                layer="below", # Això fa que el gris quedi per sota de les barres de colors
+                line_width=0
+            )
+        
+        # Mantenim la línia negra forta de principi de setmana (els dilluns)
+        dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         for dilluns in dilluns_mes:
             fig.add_vline(x=dilluns, line_width=2, line_color="black")
             
