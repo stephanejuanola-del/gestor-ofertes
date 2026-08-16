@@ -13,9 +13,9 @@ st.title("📊 Planificador d'Ofertes i Ocupació")
 
 # 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
-    "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria"],
-    "Ofertes Recycling": ["JordiVila", "RicardJoan", "Brendan", "Adria", "Samuel", "David"],
-    "Ofertes Internacionals": ["JordiVila", "RicardJoan", "Brendan", "Adria", "Samuel", "David", "IagoParga"]
+    "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
+    "Ofertes Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
+    "Ofertes Internacionals": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"]
 }
 
 # 2. CONNEXIÓ A GOOGLE SHEETS
@@ -137,47 +137,66 @@ departaments_seleccionats = st.multiselect(
 df_filtrat = st.session_state.ofertes[st.session_state.ofertes["Departament"].isin(departaments_seleccionats)]
 st.divider()
 
-# 6. BARRA D'OCUPACIÓ REAL
-st.subheader(f"🔥 Ocupació del Personal ({nom_mes_actual} {st.session_state.any_vista})")
+# 6. BARRA D'OCUPACIÓ REAL (GLOBAL PER PERSONA I DESGLOSSADA PER DEPARTAMENT)
+st.subheader(f"🔥 Ocupació Global del Personal ({nom_mes_actual} {st.session_state.any_vista})")
 
 if departaments_seleccionats:
-    for dept in departaments_seleccionats:
-        st.markdown(f"#### 🏢 {dept}")
-        personal_dept = equips[dept]
-        columnes = st.columns(len(personal_dept))
+    # Obtenemos la lista única de todo el personal activo en los departamentos seleccionados
+    personal_unic = sorted(list(set([persona for dept in departaments_seleccionats for persona in equips[dept]])))
+    
+    # Creamos columnas para mostrar a todo el personal en una sola rejilla limpia
+    num_columnes = 4  # Ajusta según cuántos trabajadores quieras ver por fila
+    columnes = st.columns(num_columnes)
+    
+    for idx, persona in enumerate(personal_unic):
+        col = columnes[idx % num_columnes]
         
-        for i, persona in enumerate(personal_dept):
-            ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
-            
-            total_dies_mes = 0
-            for _, fila in ofertes_persona.iterrows():
-                if pd.notnull(fila["Inici"]) and pd.notnull(fila["Final"]):
-                    inici_oferta = pd.to_datetime(fila["Inici"]).date()
-                    final_oferta = pd.to_datetime(fila["Final"]).date()
-                    
-                    inici_real = max(inici_oferta, inici_mes_dt)
-                    final_real = min(final_oferta, final_mes_dt)
-                    
-                    if inici_real <= final_real:
-                        dies = np.busday_count(inici_real, final_real + pd.Timedelta(days=1), holidays=festius_np)
-                        total_dies_mes += dies
+        # Filtramos todas las ofertas asignadas a esta persona en el mes seleccionado
+        ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
+        
+        total_dies_mes = 0
+        desglos_dept = {}
+        
+        for _, fila in ofertes_persona.iterrows():
+            if pd.notnull(fila["Inici"]) and pd.notnull(fila["Final"]):
+                inici_oferta = pd.to_datetime(fila["Inici"]).date()
+                final_oferta = pd.to_datetime(fila["Final"]).date()
                 
-            percentatge_real = int((total_dies_mes / dies_habils_mes) * 100) if dies_habils_mes > 0 else 0
-            percentatge_barra = min(percentatge_real, 100)
+                inici_real = max(inici_oferta, inici_mes_dt)
+                final_real = min(final_oferta, final_mes_dt)
+                
+                if inici_real <= final_real:
+                    dies = np.busday_count(inici_real, final_real + pd.Timedelta(days=1), holidays=festius_np)
+                    total_dies_mes += dies
+                    
+                    # Sumamos los días al departamento correspondiente
+                    dept = fila["Departament"]
+                    desglos_dept[dept] = desglos_dept.get(dept, 0) + dies
+        
+        percentatge_real = int((total_dies_mes / dies_habils_mes) * 100) if dies_habils_mes > 0 else 0
+        percentatge_barra = min(percentatge_real, 100)
+        
+        with col:
+            # Color de alerta si supera el 100% de carga
+            indicador = "🔴" if percentatge_real > 100 else ("🟡" if percentatge_real >= 80 else "🟢")
             
-            with columnes[i]:
-                st.metric(
-                    label=persona, 
-                    value=f"{percentatge_real}%", 
-                    delta=f"{total_dies_mes} de {dies_habils_mes} dies", 
-                    delta_color="off"
-                )
-                st.progress(percentatge_barra / 100.0)
-        st.write("") 
+            st.metric(
+                label=f"{indicador} {persona}", 
+                value=f"{percentatge_real}%", 
+                delta=f"{total_dies_mes} de {dies_habils_mes} dies hàbils", 
+                delta_color="off"
+            )
+            st.progress(percentatge_barra / 100.0)
+            
+            # Muestra el desglose por departamentos en texto pequeño debajo de la barra
+            if desglos_dept:
+                text_desglos = " | ".join([f"**{d.replace('Ofertes ', '')}:** {v}d" for d, v in desglos_dept.items()])
+                st.caption(f"📌 {text_desglos}")
+            else:
+                st.caption("✨ Sense feina assignada")
+            st.write("")
 else:
     st.info("Selecciona com a mínim un departament per veure l'ocupació.")
-
-st.divider()
 
 # 7. CALENDARI VISUAL (GANTT I RECURSOS)
 st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
