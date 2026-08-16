@@ -2,55 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-st.subheader("🔥 Ocupació del Personal (Basat en capacitat mensual)")
-if personal_filtrat:
-    columnes = st.columns(len(personal_filtrat))
-    
-    # Definim quants dies feiners té un mes mitjà per calcular el 100%
-    capacitat_mensual = 21 
-    
-    for i, persona in enumerate(personal_filtrat):
-        # Busquem totes les ofertes d'aquesta persona
-        ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
-        
-        total_dies_feina = 0
-        for _, fila in ofertes_persona.iterrows():
-            # Assegurem que les dates estan en el format correcte per calcular
-            inici = pd.to_datetime(fila["Inici"]).date()
-            final = pd.to_datetime(fila["Final"]).date()
-            
-            # np.busday_count calcula els dies de dilluns a divendres. 
-            # Hi sumem 1 dia perquè la data final també compta com a dia treballat.
-            dies_oferta = np.busday_count(inici, final) + 1
-            total_dies_feina += dies_oferta
-            
-        # Calculem el % d'ocupació
-        percentatge_real = int((total_dies_feina / capacitat_mensual) * 100)
-        
-        # Streamlit necessita que la barra de progrés estigui entre 0.0 i 1.0 (màxim 100%)
-        # Si algú passa del 100%, la barra es quedarà plena, però el número mostrarà el % real
-        percentatge_barra = min(percentatge_real, 100)
-        
-        with columnes[i]:
-            # Mostrem el percentatge i, a sota, els dies totals que suma
-            st.metric(
-                label=persona, 
-                value=f"{percentatge_real}%", 
-                delta=f"{total_dies_feina} dies ocupats", 
-                delta_color="off"
-            )
-            st.progress(percentatge_barra / 100.0)
-else:
-    st.info("Selecciona com a mínim un departament per veure l'ocupació.")
+from datetime import datetime
 
 st.set_page_config(page_title="Gestor d'Ofertes", layout="wide")
 st.title("📊 Planificador d'Ofertes i Ocupació")
 
-# 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS (Pots canviar els noms aquí)
+# 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
-    "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria"],
-    "Ofertes Recycling": ["JordiVila", "RicardJoan","Brendan", "Adria", "Samuel", "David" ],
-    "Ofertes Internacionals": ["JordiVila", "RicardJoan","Brendan", "Adria", "Samuel", "David", "IagoParga"]
+    "Ofertes França": ["Anna", "Marc"],
+    "Ofertes Recycling": ["Laura", "Jordi"],
+    "Ofertes Internacionals": ["Joan", "Carla", "Sara"]
 }
 
 # Creem una llista amb tots els noms per al formulari
@@ -71,7 +32,6 @@ with st.sidebar.form("nova_oferta"):
     guardar = st.form_submit_button("Guardar Oferta")
 
 if guardar:
-    # Busquem de quin departament és la persona seleccionada
     dept_assignat = next(dept for dept, pers in equips.items() if responsable in pers)
     nova_fila = {
         "Projecte": nom_projecte, 
@@ -89,7 +49,7 @@ st.subheader("🔍 Filtra per departament")
 departaments_seleccionats = st.multiselect(
     "Selecciona quins departaments vols visualitzar:", 
     options=list(equips.keys()), 
-    default=list(equips.keys()) # Per defecte es mostren tots
+    default=list(equips.keys())
 )
 
 # Filtrem les dades segons els botons seleccionats
@@ -98,31 +58,46 @@ personal_filtrat = [persona for dept in departaments_seleccionats for persona in
 
 st.divider()
 
-# 5. BARRA D'OCUPACIÓ (Només del personal filtrat)
-st.subheader("🔥 Ocupació del Personal")
+# 5. BARRA D'OCUPACIÓ REAL
+st.subheader("🔥 Ocupació del Personal (Basat en capacitat mensual)")
 if personal_filtrat:
     columnes = st.columns(len(personal_filtrat))
-    # Simulació d'ocupació (es pot canviar per càlcul real més endavant)
-    ocupacio_simulada = np.random.randint(40, 95, size=len(personal_filtrat)) 
+    capacitat_mensual = 21 
     
     for i, persona in enumerate(personal_filtrat):
+        ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
+        
+        total_dies_feina = 0
+        for _, fila in ofertes_persona.iterrows():
+            inici = pd.to_datetime(fila["Inici"]).date()
+            final = pd.to_datetime(fila["Final"]).date()
+            
+            dies_oferta = np.busday_count(inici, final) + 1
+            total_dies_feina += dies_oferta
+            
+        percentatge_real = int((total_dies_feina / capacitat_mensual) * 100)
+        percentatge_barra = min(percentatge_real, 100)
+        
         with columnes[i]:
-            st.metric(label=persona, value=f"{ocupacio_simulada[i]}%")
-            st.progress(ocupacio_simulada[i] / 100.0)
+            st.metric(
+                label=persona, 
+                value=f"{percentatge_real}%", 
+                delta=f"{total_dies_feina} dies ocupats", 
+                delta_color="off"
+            )
+            st.progress(percentatge_barra / 100.0)
 else:
     st.info("Selecciona com a mínim un departament per veure l'ocupació.")
 
 st.divider()
 
-# 6. CALENDARI VISUAL (GANTT) DE DILLUNS A DIVENDRES
+# 6. CALENDARI VISUAL (GANTT)
 st.subheader("📅 Calendari d'Ofertes (Dilluns - Divendres)")
 
 if not df_filtrat.empty:
-    # Convertim les dates per assegurar-nos que Plotly les llegeix bé
     df_filtrat["Inici"] = pd.to_datetime(df_filtrat["Inici"])
     df_filtrat["Final"] = pd.to_datetime(df_filtrat["Final"])
 
-    # Creem el gràfic de Gantt
     fig = px.timeline(
         df_filtrat, 
         x_start="Inici", 
@@ -133,19 +108,10 @@ if not df_filtrat.empty:
         title="Planificació de projectes"
     )
     
-    # Ordenem perquè la primera oferta surti a dalt
     fig.update_yaxes(autorange="reversed")
-    
-    # AMAGUEM ELS CAPS DE SETMANA (Dissabte i Diumenge)
-    fig.update_xaxes(
-        rangebreaks=[
-            dict(bounds=["sat", "mon"]) 
-        ]
-    )
-    
+    fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
     st.plotly_chart(fig, use_container_width=True)
     
-    # Mostrem la taula de dades a sota per si es volen veure els detalls
     with st.expander("Veure la taula de dades d'aquestes ofertes"):
         st.dataframe(df_filtrat, use_container_width=True)
 else:
