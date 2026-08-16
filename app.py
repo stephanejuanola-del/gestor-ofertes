@@ -11,6 +11,15 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="Gestor d'Ofertes", layout="wide")
 st.title("📊 Planificador d'Ofertes i Ocupació")
 
+# --- NOU: LLISTA DE FESTIUS GLOBALS DE L'EMPRESA ---
+# Modifica aquestes dates amb els festius reals del teu calendari laboral (Format: AAAA-MM-DD)
+festius_empresa = [
+    "2026-01-01", "2026-01-06", "2026-04-06", "2026-05-01", 
+    "2026-06-24", "2026-08-15", "2026-09-11", "2026-10-12", 
+    "2026-11-01", "2026-12-06", "2026-12-08", "2026-12-25", "2026-12-26"
+]
+festius_np = [pd.to_datetime(f).date() for f in festius_empresa]
+
 # 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
     "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria"],
@@ -32,7 +41,6 @@ try:
     dades_excel = sheet.get_all_records()
     if dades_excel:
         st.session_state.ofertes = pd.DataFrame(dades_excel)
-        # Convertir text a format data, ignorant errors si hi ha cel·les buides
         st.session_state.ofertes["Inici"] = pd.to_datetime(st.session_state.ofertes["Inici"], errors='coerce')
         st.session_state.ofertes["Final"] = pd.to_datetime(st.session_state.ofertes["Final"], errors='coerce')
     else:
@@ -61,21 +69,22 @@ def canviar_mes(increment):
     st.session_state.any_vista = nou_any
 
 # 3. MENÚ LATERAL (FORMULARI)
-st.sidebar.header("➕ Nova Oferta")
-nom_projecte = st.sidebar.text_input("Nom del Projecte/Oferta")
+st.sidebar.header("➕ Nova Oferta / Vacances")
+st.sidebar.info("💡 Si el projecte es diu 'Vacances', es pintarà de color gris fosc automàticament.")
+nom_projecte = st.sidebar.text_input("Nom del Projecte (Ex: Vacances Agost)")
 departament = st.sidebar.selectbox("Departament de l'oferta", list(equips.keys()))
 responsable = st.sidebar.selectbox("Personal assignat", equips[departament])
 data_inici = st.sidebar.date_input("Data d'inici")
 data_final = st.sidebar.date_input("Data final")
 documents = st.sidebar.text_area("Documents a preparar")
 
-if st.sidebar.button("Guardar Oferta", type="primary"):
+if st.sidebar.button("Guardar Registre", type="primary"):
     nova_fila = [nom_projecte, departament, responsable, str(data_inici), str(data_final), documents]
-    sheet.append_row(nova_fila) # S'envia directe a Google Sheets
-    st.sidebar.success("✅ Oferta guardada a l'Excel!")
+    sheet.append_row(nova_fila)
+    st.sidebar.success("✅ Guardat correctament a l'Excel!")
     st.rerun()
 
-# 4. NAVEGACIÓ DEL CALENDARI
+# 4. NAVEGACIÓ DEL CALENDARI I CÀLCUL DE DIES
 st.divider()
 mesos_noms = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"]
 nom_mes_actual = mesos_noms[st.session_state.mes_vista - 1]
@@ -91,9 +100,11 @@ with col_dreta:
 ultim_dia = calendar.monthrange(st.session_state.any_vista, st.session_state.mes_vista)[1]
 inici_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01").date()
 final_mes_dt = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}").date()
-dies_habils_mes = np.busday_count(inici_mes_dt, final_mes_dt + pd.Timedelta(days=1))
 
-st.markdown(f"<p style='text-align: center; color: gray;'>Aquest mes té <b>{dies_habils_mes} dies hàbils</b> de treball.</p>", unsafe_allow_html=True)
+# Càlcul precís que ja descompta els caps de setmana i ELS FESTIUS GLOBALS
+dies_habils_mes = np.busday_count(inici_mes_dt, final_mes_dt + pd.Timedelta(days=1), holidays=festius_np)
+
+st.markdown(f"<p style='text-align: center; color: gray;'>Aquest mes té <b>{dies_habils_mes} dies hàbils</b> de treball efectiu (descomptant caps de setmana i festius).</p>", unsafe_allow_html=True)
 st.divider()
 
 # 5. FILTRES
@@ -128,7 +139,7 @@ if departaments_seleccionats:
                     final_real = min(final_oferta, final_mes_dt)
                     
                     if inici_real <= final_real:
-                        dies = np.busday_count(inici_real, final_real + pd.Timedelta(days=1))
+                        dies = np.busday_count(inici_real, final_real + pd.Timedelta(days=1), holidays=festius_np)
                         total_dies_mes += dies
                 
             percentatge_real = int((total_dies_mes / dies_habils_mes) * 100) if dies_habils_mes > 0 else 0
@@ -163,14 +174,25 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         df_net = df_net.sort_values(by=["Departament", "Responsable"], ascending=[False, False])
         
+        # --- NOU: DETECCIÓ DE VACANCES PER FORÇAR EL COLOR ---
+        df_net["Categoria_Color"] = df_net.apply(
+            lambda row: "Vacances" if "vacances" in str(row["Projecte"]).lower() 
+            else (row["Projecte"] if estil_grafic == "Vista per Personal (Estil Recursos)" else row["Responsable"]),
+            axis=1
+        )
+        
+        # El diccionari de colors (les vacances sempre gris fosc, la resta ho tria automàtic)
+        mapa_colors = {"Vacances": "dimgray"}
+        
         if estil_grafic == "Vista per Personal (Estil Recursos)":
             fig = px.timeline(
                 df_net, 
                 x_start="Inici", 
                 x_end="Final", 
                 y="Responsable", 
-                color="Projecte", 
-                hover_data=["Departament", "Documents"],
+                color="Categoria_Color", 
+                color_discrete_map=mapa_colors,
+                hover_data=["Projecte", "Departament", "Documents"],
                 text="Projecte"
             )
             fig.update_traces(textposition='inside', insidetextanchor='middle')
@@ -180,8 +202,9 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 x_start="Inici", 
                 x_end="Final", 
                 y="Projecte", 
-                color="Responsable", 
-                hover_data=["Departament", "Documents"]
+                color="Categoria_Color",
+                color_discrete_map=mapa_colors, 
+                hover_data=["Responsable", "Departament", "Documents"]
             )
         
         fig.update_traces(width=0.85)
@@ -192,13 +215,12 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
             height=max(400, len(df_net["Responsable"].unique()) * 40 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
             showlegend=True,
-            legend_title_text='Llegenda (Projectes)' if estil_grafic == "Vista per Personal (Estil Recursos)" else 'Llegenda (Personal)'
+            legend_title_text='Llegenda'
         )
         
         data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
         data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
         
-        # ATENCIÓ: Hem tret la funció d'amagar el cap de setmana perquè es pugui veure
         fig.update_xaxes(
             range=[data_inici_text, data_final_text],
             tickformat="%d %b", 
@@ -207,22 +229,26 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
         
-        # --- NOU: OMBREJAT GRIS PELS CAPS DE SETMANA ---
-        # Busquem quins dies cauen en dissabte (5) o diumenge (6)
+        # 7.1 OMBREJAT GRIS PELS CAPS DE SETMANA (Gris clar)
         caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
-        
         for dia in caps_de_setmana:
-            # Dibuixem un fons gris darrere de cada dia de cap de setmana
             fig.add_vrect(
-                x0=dia, 
-                x1=dia + pd.Timedelta(days=1), 
-                fillcolor="lightgray", 
-                opacity=0.4, 
-                layer="below", # Això fa que el gris quedi per sota de les barres de colors
-                line_width=0
+                x0=dia, x1=dia + pd.Timedelta(days=1), 
+                fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
             )
+            
+        # 7.2 OMBREJAT PELS FESTIUS GLOBALS (Gris Fosc)
+        for festiu in festius_empresa:
+            festiu_dt = pd.to_datetime(festiu)
+            # Dibuixem el festiu només si forma part del mes que estem veient
+            if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
+                fig.add_vrect(
+                    x0=festiu_dt, x1=festiu_dt + pd.Timedelta(days=1), 
+                    fillcolor="dimgray", opacity=0.6, layer="below", line_width=0,
+                    annotation_text="FESTIU", annotation_position="top right"
+                )
         
-        # Mantenim la línia negra forta de principi de setmana (els dilluns)
+        # Línia negra separant setmanes
         dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         for dilluns in dilluns_mes:
             fig.add_vline(x=dilluns, line_width=2, line_color="black")
@@ -232,8 +258,9 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
 else:
     st.warning("No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
+
 # 8. TAULA EDITABLE AMB SINCRONITZACIÓ A GOOGLE SHEETS
-with st.expander("✏️ Base de dades d'Ofertes completa"):
+with st.expander("✏️ Base de dades completa (Clica per obrir i editar)"):
     st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Quan acabis, prem el botó de sota per guardar els canvis a Google Sheets.")
     
     df_editat = st.data_editor(
@@ -248,13 +275,11 @@ with st.expander("✏️ Base de dades d'Ofertes completa"):
     )
     
     if st.button("💾 Desar canvis manuals a Google Sheets"):
-        # Converteix les dates a text perquè Google Sheets les entengui
         df_per_guardar = df_editat.copy()
         df_per_guardar['Inici'] = df_per_guardar['Inici'].dt.strftime('%Y-%m-%d')
         df_per_guardar['Final'] = df_per_guardar['Final'].dt.strftime('%Y-%m-%d')
-        df_per_guardar.fillna("", inplace=True) # Omple espais buits
+        df_per_guardar.fillna("", inplace=True)
         
-        # Sobreescriu l'Excel amb les dades actualitzades
         sheet.clear()
         llista_dades = [df_per_guardar.columns.values.tolist()] + df_per_guardar.values.tolist()
         sheet.update(llista_dades)
