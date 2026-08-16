@@ -148,46 +148,82 @@ else:
 
 st.divider()
 
-# 7. CALENDARI VISUAL
+# 7. CALENDARI VISUAL (GANTT I RECURSOS)
 st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
 if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
     df_net = df_filtrat.dropna(subset=["Inici", "Final"]).copy()
     
     if not df_net.empty:
-        fig = px.timeline(
-            df_net, 
-            x_start="Inici", 
-            x_end="Final", 
-            y="Projecte", 
-            color="Responsable", 
-            hover_data=["Departament", "Documents"]
+        # Botó per triar el tipus de vista
+        estil_grafic = st.radio(
+            "Tria l'estil de visualització:", 
+            ["Vista per Personal (Estil Recursos)", "Vista per Projectes (Estil Gantt)"], 
+            horizontal=True
         )
         
-        fig.update_traces(width=0.4)
+        # Ordenem les dades perquè el personal del mateix departament surti junt
+        df_net = df_net.sort_values(by=["Departament", "Responsable"], ascending=[False, False])
+        
+        if estil_grafic == "Vista per Personal (Estil Recursos)":
+            fig = px.timeline(
+                df_net, 
+                x_start="Inici", 
+                x_end="Final", 
+                y="Responsable",  # Eix Y: Noms del personal
+                color="Projecte", # Colors: Segons el projecte
+                hover_data=["Departament", "Documents"],
+                text="Projecte"   # Escriu el nom del projecte dins la barra
+            )
+            fig.update_traces(textposition='inside', insidetextanchor='middle')
+        else:
+            fig = px.timeline(
+                df_net, 
+                x_start="Inici", 
+                x_end="Final", 
+                y="Projecte", 
+                color="Responsable", 
+                hover_data=["Departament", "Documents"]
+            )
+        
+        fig.update_traces(width=0.5)
+        
+        # Disseny de la quadrícula (estil Excel blanc)
         fig.update_layout(
             plot_bgcolor='white',
             xaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
-            yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1, autorange="reversed"),
-            height=500,
-            showlegend=True
+            yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
+            # Fem que l'alçada s'adapti automàticament a la quantitat de gent que hi hagi
+            height=max(400, len(df_net["Responsable"].unique()) * 40 + 150), 
+            showlegend=True,
+            legend_title_text='Llegenda (Projectes)' if estil_grafic == "Vista per Personal (Estil Recursos)" else 'Llegenda (Personal)'
         )
         
         data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
         data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
         
-        fig.update_xaxes(
-            range=[data_inici_text, data_final_text],
-            tickformat="%d %b",
-            dtick=86400000,
-            rangebreaks=[dict(bounds=["sat", "mon"])]
-        )
+        if estil_grafic == "Vista per Personal (Estil Recursos)":
+            # Vista Estil Imatge (Setmanes)
+            fig.update_xaxes(
+                range=[data_inici_text, data_final_text],
+                tickformat="Setmana %W<br>%d %b", # Etiqueta: "Setmana X" i la data
+                dtick=604800000, # Tick cada 7 dies exactes (en milisegons)
+                rangebreaks=[dict(bounds=["sat", "mon"])]
+            )
+        else:
+            # Vista Estil Diari (Anterior)
+            fig.update_xaxes(
+                range=[data_inici_text, data_final_text],
+                tickformat="%d %b",
+                dtick=86400000, # Tick cada dia
+                rangebreaks=[dict(bounds=["sat", "mon"])]
+            )
             
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning("Has de posar dates d'inici i final a les ofertes.")
+        st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
 else:
-    st.warning("No hi ha cap oferta que es pugui visualitzar.")
+    st.warning("No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
 
 # 8. TAULA EDITABLE AMB SINCRONITZACIÓ A GOOGLE SHEETS
 with st.expander("✏️ Base de dades d'Ofertes completa"):
