@@ -280,11 +280,11 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 hover_data=["Responsable", "Departament", "Documents"]
             )
         
-        # AJUST DE TRANSPARÈNCIA I MODI DE BARRES PER VEURE SOLAPAMENTS
-        fig.update_traces(width=0.75, opacity=0.85)
+        # --- AQUÍ HI HA ELS CANVIS DE MIDA I TRANSPARÈNCIA ---
+        fig.update_traces(width=0.65, opacity=0.65) # Barres un poc més primes i translúcides
         
         fig.update_layout(
-            barmode="overlay", # Permet mostrar les barres superposades sense tapar-les completament
+            barmode="overlay",
             plot_bgcolor='white',
             xaxis=dict(
                 showgrid=True, 
@@ -294,7 +294,8 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 side="top"
             ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
-            height=max(400, len(df_net["Responsable"].unique()) * 50 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
+            # Més espai vertical per cada fila (65px)
+            height=max(400, len(df_net["Responsable"].unique()) * 65 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
             showlegend=True,
             legend_title_text='Llegenda'
         )
@@ -310,7 +311,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
         
-        # OMBREJAT GRIS PELS CAPS DE SETMANA (Gris clar)
         caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
         for dia in caps_de_setmana:
             fig.add_vrect(
@@ -318,7 +318,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
             )
             
-        # OMBREJAT PELS FESTIUS GLOBALS
         for festiu_dt in festius_np:
             if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
                 f_inici = pd.to_datetime(festiu_dt)
@@ -330,7 +329,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                     annotation_text="FESTIU", annotation_position="top right"
                 )
         
-        # LÍNIA NEGRA DELS DILLUNS I TEXT DE LA SETMANA (SXX)
         dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         for dilluns in dilluns_mes:
             num_setmana = dilluns.isocalendar().week
