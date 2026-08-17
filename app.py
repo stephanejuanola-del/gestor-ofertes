@@ -170,13 +170,23 @@ departaments_seleccionats = st.multiselect(
     default=list(equips.keys())
 )
 
-# MOSTRA LES OFERTES DELS DEPARTAMENTS SELECCIONATS + TOTES LES VACANCES DE TOT EL PERSONAL AUTOMÀTICAMENT
+# 1. Obtenim quines persones pertanyen als departaments seleccionats
+personal_dels_departaments = list(set([
+    persona 
+    for dept in departaments_seleccionats 
+    for persona in equips.get(dept, [])
+]))
+
+# 2. Filtrem les ofertes: només del personal d'aquests departaments
+# (Això mostra les seves ofertes I LES SEVES VACANCES, però ignora el personal d'altres departaments)
 df_filtrat = st.session_state.ofertes[
-    (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) | 
-    (st.session_state.ofertes["Projecte"].astype(str).str.lower().str.contains("vacances"))
+    (st.session_state.ofertes["Responsable"].isin(personal_dels_departaments)) & 
+    (
+        (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) | 
+        (st.session_state.ofertes["Projecte"].astype(str).str.lower().str.contains("vacances"))
+    )
 ]
 st.divider()
-
 # 6. BARRA D'OCUPACIÓ REAL
 st.subheader(f"🔥 Ocupació Global del Personal ({nom_mes_actual} {st.session_state.any_vista})")
 
