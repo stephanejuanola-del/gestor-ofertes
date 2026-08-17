@@ -284,7 +284,13 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         fig.update_layout(
             plot_bgcolor='white',
-            xaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
+            xaxis=dict(
+                showgrid=True, 
+                gridcolor='lightgray', 
+                gridwidth=1,
+                title=f"<b>MES DE {nom_mes_actual.upper()} {st.session_state.any_vista}</b>", # Títol del mes a l'eix X
+                side="top" # Mostra l'eix de dates i nom del mes a la PART SUPERIOR
+            ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
             height=max(400, len(df_net["Responsable"].unique()) * 40 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
             showlegend=True,
@@ -302,6 +308,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         
         dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
         
+        # OMBREJAT GRIS PELS CAPS DE SETMANA (Gris clar)
         caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
         for dia in caps_de_setmana:
             fig.add_vrect(
@@ -309,6 +316,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
             )
             
+        # OMBREJAT PELS FESTIUS GLOBALS
         for festiu_dt in festius_np:
             if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
                 f_inici = pd.to_datetime(festiu_dt)
@@ -320,9 +328,24 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                     annotation_text="FESTIU", annotation_position="top right"
                 )
         
+        # --- LÍNIA NEGRA DELS DILLUNS I TEXT DE LA SETMANA (SXX) ---
         dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         for dilluns in dilluns_mes:
+            num_setmana = dilluns.isocalendar().week # Calcula el número de setmana (ISO)
+            
+            # Afegim la línia negra
             fig.add_vline(x=dilluns, line_width=2, line_color="black")
+            
+            # Afegim l'etiqueta SXX a dalt de la línia
+            fig.add_annotation(
+                x=dilluns,
+                y=1,
+                yref="paper",
+                text=f"<b>S{num_setmana}</b>",
+                showarrow=False,
+                yshift=15,
+                font=dict(size=12, color="black")
+            )
             
         st.plotly_chart(fig, use_container_width=True)
     else:
