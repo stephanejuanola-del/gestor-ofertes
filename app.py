@@ -281,7 +281,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             )
         
         # --- AQUÍ HI HA ELS CANVIS DE MIDA I TRANSPARÈNCIA ---
-        fig.update_traces(width=0.65, opacity=0.65) # Barres un poc més primes i translúcides
+        fig.update_traces(width=0.65, opacity=0.75) # Barres un poc més primes i translúcides
         
         fig.update_layout(
             barmode="overlay",
