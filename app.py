@@ -280,19 +280,21 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 hover_data=["Responsable", "Departament", "Documents"]
             )
         
-        fig.update_traces(width=0.85)
+        # AJUST DE TRANSPARÈNCIA I MODI DE BARRES PER VEURE SOLAPAMENTS
+        fig.update_traces(width=0.75, opacity=0.85)
         
         fig.update_layout(
+            barmode="overlay", # Permet mostrar les barres superposades sense tapar-les completament
             plot_bgcolor='white',
             xaxis=dict(
                 showgrid=True, 
                 gridcolor='lightgray', 
                 gridwidth=1,
-                title=f"<b>MES DE {nom_mes_actual.upper()} {st.session_state.any_vista}</b>", # Títol del mes a l'eix X
-                side="top" # Mostra l'eix de dates i nom del mes a la PART SUPERIOR
+                title=f"<b>MES DE {nom_mes_actual.upper()} {st.session_state.any_vista}</b>",
+                side="top"
             ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
-            height=max(400, len(df_net["Responsable"].unique()) * 40 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
+            height=max(400, len(df_net["Responsable"].unique()) * 50 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
             showlegend=True,
             legend_title_text='Llegenda'
         )
@@ -328,15 +330,11 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                     annotation_text="FESTIU", annotation_position="top right"
                 )
         
-        # --- LÍNIA NEGRA DELS DILLUNS I TEXT DE LA SETMANA (SXX) ---
+        # LÍNIA NEGRA DELS DILLUNS I TEXT DE LA SETMANA (SXX)
         dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
         for dilluns in dilluns_mes:
-            num_setmana = dilluns.isocalendar().week # Calcula el número de setmana (ISO)
-            
-            # Afegim la línia negra
+            num_setmana = dilluns.isocalendar().week
             fig.add_vline(x=dilluns, line_width=2, line_color="black")
-            
-            # Afegim l'etiqueta SXX a dalt de la línia
             fig.add_annotation(
                 x=dilluns,
                 y=1,
