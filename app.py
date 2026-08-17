@@ -280,8 +280,13 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 hover_data=["Responsable", "Departament", "Documents"]
             )
         
-        # --- AQUÍ HI HA ELS CANVIS DE MIDA I TRANSPARÈNCIA ---
-        fig.update_traces(width=0.65, opacity=0.75) # Barres un poc més primes i translúcides
+        # BARRES TRANSLÚCIDES AMB VORA PER MARCAR ELS DELIMITADORS DE SOLAPAMENT
+        fig.update_traces(
+            width=0.65, 
+            opacity=0.60,
+            marker_line_color="black",
+            marker_line_width=2
+        )
         
         fig.update_layout(
             barmode="overlay",
@@ -294,7 +299,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 side="top"
             ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
-            # Més espai vertical per cada fila (65px)
             height=max(400, len(df_net["Responsable"].unique()) * 65 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
             showlegend=True,
             legend_title_text='Llegenda'
