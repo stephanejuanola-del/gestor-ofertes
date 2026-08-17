@@ -169,7 +169,12 @@ departaments_seleccionats = st.multiselect(
     options=list(equips.keys()), 
     default=list(equips.keys())
 )
-df_filtrat = st.session_state.ofertes[st.session_state.ofertes["Departament"].isin(departaments_seleccionats)]
+
+# MOSTRA LES OFERTES DELS DEPARTAMENTS SELECCIONATS + TOTES LES VACANCES DE TOT EL PERSONAL AUTOMÀTICAMENT
+df_filtrat = st.session_state.ofertes[
+    (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) | 
+    (st.session_state.ofertes["Projecte"].astype(str).str.lower().str.contains("vacances"))
+]
 st.divider()
 
 # 6. BARRA D'OCUPACIÓ REAL
