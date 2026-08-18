@@ -170,22 +170,25 @@ departaments_seleccionats = st.multiselect(
     default=list(equips.keys())
 )
 
-# 1. Obtenim quines persones pertanyen als departaments seleccionats
-personal_dels_departaments = list(set([
-    persona 
-    for dept in departaments_seleccionats 
-    for persona in equips.get(dept, [])
-]))
+# 1. Agafem les ofertes dels departaments seleccionats
+df_dept = st.session_state.ofertes[
+    st.session_state.ofertes["Departament"].isin(departaments_seleccionats)
+]
 
-# 2. Filtrem les ofertes: només del personal d'aquests departaments
-# (Això mostra les seves ofertes I LES SEVES VACANCES, però ignora el personal d'altres departaments)
+# 2. Identifiquem NOMÉS les persones que tenen com a mínim un projecte real de feina (excloent "Vacances")
+personal_amb_projectes = df_dept[
+    ~df_dept["Projecte"].astype(str).str.lower().str.contains("vacances")
+]["Responsable"].unique()
+
+# 3. Filtrem el resultat final: NOMÉS les persones amb feina assignada (i mostrem la seva feina + les seves vacances)
 df_filtrat = st.session_state.ofertes[
-    (st.session_state.ofertes["Responsable"].isin(personal_dels_departaments)) & 
+    (st.session_state.ofertes["Responsable"].isin(personal_amb_projectes)) &
     (
-        (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) | 
+        (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) |
         (st.session_state.ofertes["Projecte"].astype(str).str.lower().str.contains("vacances"))
     )
 ]
+
 st.divider()
 # 6. BARRA D'OCUPACIÓ REAL
 st.subheader(f"🔥 Ocupació Global del Personal ({nom_mes_actual} {st.session_state.any_vista})")
