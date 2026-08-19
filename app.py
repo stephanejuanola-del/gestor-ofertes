@@ -298,6 +298,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 hover_data=["Responsable", "Departament", "Documents"]
             )
         
+        # BARRES TRANSLÚCIDES AMB VORA PER MARCAR ELS DELIMITADORS DE SOLAPAMENT
         fig.update_traces(
             width=0.65, 
             opacity=0.60,
@@ -305,17 +306,6 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             marker_line_width=2
         )
         
-        data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
-        data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
-        dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
-        
-        # MAPA DE INICIALES EN ESPAÑOL (L, M, X, J, V, S, D)
-        iniciales_dias = {0: "L", 1: "M", 2: "X", 3: "J", 4: "V", 5: "S", 6: "D"}
-        
-        # GENERAMOS LAS ETIQUETAS DEL EJE X CON NÚMERO E INICIAL (EJ: "17 L", "18 M", "19 X")
-        tick_vals = [dia for dia in dies_del_mes]
-        tick_text = [f"{dia.day} {iniciales_dias[dia.weekday()]}" for dia in dies_del_mes]
-
         fig.update_layout(
             barmode="overlay",
             plot_bgcolor='white',
@@ -324,10 +314,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
                 gridcolor='lightgray', 
                 gridwidth=1,
                 title=f"<b>MES DE {nom_mes_actual.upper()} {st.session_state.any_vista}</b>",
-                side="top",
-                tickmode="array",
-                tickvals=tick_vals,
-                ticktext=tick_text
+                side="top"
             ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
             height=max(400, len(df_net["Responsable"].unique()) * 65 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
@@ -335,9 +322,16 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
             legend_title_text='Llegenda'
         )
         
+        data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
+        data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
+        
         fig.update_xaxes(
-            range=[data_inici_text, data_final_text]
+            range=[data_inici_text, data_final_text],
+            tickformat="%d %b", 
+            dtick=86400000     
         )
+        
+        dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
         
         caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
         for dia in caps_de_setmana:
@@ -376,6 +370,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
 else:
     st.warning("No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
+
 
 # 8. TAULA EDITABLE AMB SINCRONITZACIÓ A GOOGLE SHEETS
 with st.expander("✏️ Base de dades completa (Clica per obrir i editar)"):
