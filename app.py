@@ -18,11 +18,11 @@ CALENDAR_ID = "https://calendar.google.com/calendar/embed?src=sjuanola%40bianna.
 
 # 1. DEFINICIÓ D'EQUIPS I DEPARTAMENTS
 equips = {
-    "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
-    "Ofertes Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
-    "Ofertes Internacionals": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
-    "Ofertes Brasil": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
-    "Ofertes Mèxic": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"]
+    "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adrià", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
+    "Ofertes Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adrià", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
+    "Ofertes Internacionals": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adrià", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
+    "Ofertes Brasil": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adrià", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"],
+    "Ofertes Mèxic": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adrià", "StephaneJ", "RicardJoan", "IagoParga", "David", "Samuel", "Nacho Smith"]
 }
 # 2. CONNEXIÓ A GOOGLE SHEETS I GOOGLE CALENDAR
 @st.cache_resource
