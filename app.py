@@ -236,17 +236,18 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
             dies_of = len(dies_ocupats_set)
             pct = min(100, int((dies_of / dies_laborables_mes) * 100))
             
-            # Text detallat de dies per departament
-            detall_text = ", ".join([f"{dept}: {len(d_set)}d" for dept, d_set in desglossament_dept.items() if len(d_set) > 0])
-            if not detall_text:
-                detall_text = "0 dies"
-                
-            ocupacio_persones.append({
-                "Personal": persona, 
-                "Ocupació (%)": pct, 
-                "Dies Ocupats": dies_of,
-                "Desglossament": detall_text
-            })
+            # NOMÉS AFEGIM A LA GRÀFICA I TAULA SI TÉ OCUPACIÓ REAL (> 0%)
+            if dies_of > 0:
+                detall_text = ", ".join([f"{dept}: {len(d_set)}d" for dept, d_set in desglossament_dept.items() if len(d_set) > 0])
+                if not detall_text:
+                    detall_text = "0 dies"
+                    
+                ocupacio_persones.append({
+                    "Personal": persona, 
+                    "Ocupació (%)": pct, 
+                    "Dies Ocupats": dies_of,
+                    "Desglossament": detall_text
+                })
         
         df_ocupacio = pd.DataFrame(ocupacio_persones)
         
@@ -263,11 +264,13 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
                 hover_data=["Dies Ocupats", "Desglossament"]
             )
             fig_bar.update_traces(texttemplate='%{text}%', textposition='outside')
-            fig_bar.update_layout(height=max(250, len(personal_filtrat) * 45), plot_bgcolor='white')
+            fig_bar.update_layout(height=max(250, len(df_ocupacio) * 45), plot_bgcolor='white')
             st.plotly_chart(fig_bar, use_container_width=True)
             
             # Taula de detall a sota
             st.dataframe(df_ocupacio[["Personal", "Ocupació (%)", "Dies Ocupats", "Desglossament"]], use_container_width=True, hide_index=True)
+        else:
+            st.info("No hi ha cap persona amb activitat o projectes assignats en aquest filtre.")
 
     with col_mètrica:
         st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
