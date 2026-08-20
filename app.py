@@ -418,30 +418,64 @@ else:
     st.warning("No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
 
 
-# 8. TAULA EDITABLE AMB SINCRONITZACIÓ A GOOGLE SHEETS
-with st.expander("✏️ Base de dades completa (Clica per obrir i editar)"):
-    st.write("Fes doble clic a qualsevol cel·la per modificar dates o personal. Pots gestionar els festius globals aquí també.")
+# 8. TAULA EDITABLE PER DEPARTAMENTS
+with st.expander("✏️ Base de dades completa (Organitzada per Departaments)"):
+    st.write("Selecciona el departament per editar o afegir ofertes directament a la taula.")
     
-    df_editat = st.data_editor(
-        st.session_state.ofertes,
-        use_container_width=True,
-        num_rows="dynamic",
-        column_config={
-            "Inici": st.column_config.DateColumn("Data Inici", format="YYYY-MM-DD"),
-            "Final": st.column_config.DateColumn("Data Final", format="YYYY-MM-DD"),
-            "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys()) + ["Festiu Empresa"]),
-        }
-    )
+    # 1. Creem les pestanyes dinàmicament segons els teus departaments
+    llista_pestanyes = ["Tots"] + list(equips.keys()) + ["Festiu Empresa"]
+    pestanyes = st.tabs(llista_pestanyes)
     
-    if st.button("💾 Desar canvis manuals a Google Sheets"):
-        df_per_guardar = df_editat.copy()
-        df_per_guardar['Inici'] = df_per_guardar['Inici'].dt.strftime('%Y-%m-%d')
-        df_per_guardar['Final'] = df_per_guardar['Final'].dt.strftime('%Y-%m-%d')
-        df_per_guardar.fillna("", inplace=True)
+    df_per_editar = st.session_state.ofertes.copy()
+    
+    # Configuració visual de les columnes per a Streamlit
+    config_columnes = {
+        "Inici": st.column_config.DateColumn("Data Inici", format="YYYY-MM-DD"),
+        "Final": st.column_config.DateColumn("Data Final", format="YYYY-MM-DD"),
+        "Departament": st.column_config.SelectboxColumn("Departament", options=list(equips.keys()) + ["Festiu Empresa"]),
+        "Responsable": st.column_config.SelectboxColumn("Responsable", options=sorted(list(set([p for llista in equips.values() for p in llista]))))
+    }
+    
+    canvis_realitzats = False
+    dfs_editats = []
+
+    # 2. Generem una taula independent dins de cada pestanya
+    for i, nom_pestanya in enumerate(llista_pestanyes):
+        with pestanyes[i]:
+            if nom_pestanya == "Tots":
+                df_sub = df_per_editar.copy()
+            else:
+                df_sub = df_per_editar[df_per_editar["Departament"] == nom_pestanya].copy()
+            
+            df_editat_sub = st.data_editor(
+                df_sub,
+                use_container_width=True,
+                num_rows="dynamic",
+                column_config=config_columnes,
+                key=f"editor_{nom_pestanya}"
+            )
+            
+            # Si no estem a la pestanya "Tots", guardem les modificacions d'aquesta pestanya
+            if nom_pestanya != "Tots":
+                dfs_editats.append(df_editat_sub)
+
+    st.divider()
+    
+    # 3. Botó global de desar canvis a Google Sheets
+    if st.button("💾 Desar tots els canvis a Google Sheets", type="primary"):
+        # Reconstruïm el DataFrame unificant les pestanyes individuals
+        if dfs_editats:
+            df_final_guardar = pd.concat(dfs_editats, ignore_index=True)
+        else:
+            df_final_guardar = df_per_editar.copy()
+            
+        df_final_guardar['Inici'] = pd.to_datetime(df_final_guardar['Inici']).dt.strftime('%Y-%m-%d')
+        df_final_guardar['Final'] = pd.to_datetime(df_final_guardar['Final']).dt.strftime('%Y-%m-%d')
+        df_final_guardar.fillna("", inplace=True)
         
         sheet.clear()
-        llista_dades = [df_per_guardar.columns.values.tolist()] + df_per_guardar.values.tolist()
+        llista_dades = [df_final_guardar.columns.values.tolist()] + df_final_guardar.values.tolist()
         sheet.update(llista_dades)
         
-        st.success("✅ Canvis guardats correctament a l'Excel!")
+        st.success("✅ La base de dades s'ha actualitzat correctament a Google Sheets!")
         st.rerun()
