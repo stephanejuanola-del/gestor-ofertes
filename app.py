@@ -194,32 +194,47 @@ st.divider()
 # 6. MÈTRIQUES D'OCUPACIÓ I CAPACITAT
 st.subheader(f"📊 Ocupació de l'Equip a {nom_mes_actual}")
 
-# Calculem els dies totals i feiners del mes seleccionat
+# 1. Calculem els dies totals i feiners del mes seleccionat
 data_inici_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01")
 data_final_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}")
 tot_dies = pd.date_range(start=data_inici_mes, end=data_final_mes)
 
-# Filtrem caps de setmana i festius per obtenir la capacitat teòrica
+# Llista de dies feiners (dilluns a divendres que no siguin festius globals)
 dies_feiners = [d for d in tot_dies if d.weekday() < 5 and d.strftime('%Y-%m-%d') not in festius_np]
 dies_laborables_mes = len(dies_feiners)
 
 if dies_laborables_mes > 0 and not df_filtrat.empty:
-    # 1. Identifiquem NOMÉS les persones amb feina assignada en el filtre actual
-    personal_actiu = df_filtrat[
+    # 2. Identifiquem NOMÉS les persones amb projectes de feina assignats en el filtre actual (excloent vacances)
+    df_projectes_reals = df_filtrat[
         ~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances")
-    ]["Responsable"].unique()
+    ]
+    personal_actiu = df_projectes_reals["Responsable"].unique()
 
     if len(personal_actiu) > 0:
         col_graf, col_mètrica = st.columns([3, 1])
         
         with col_graf:
             ocupacio_persones = []
+            
+            # Calculem l'ocupació directament per a cada persona activa
             for persona in personal_actiu:
-                dies_of, dies_vac = calcular_dies_ocupats_persona(
-                    df_filtrat, persona, st.session_state.any_vista, st.session_state.mes_vista, festius_np
-                )
-                pct = min(100, int((dies_of / dies_laborables_mes) * 100))
-                ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": dies_of})
+                df_persona = df_projectes_reals[df_projectes_reals["Responsable"] == persona]
+                dies_ocupats_set = set()
+                
+                for _, row in df_persona.iterrows():
+                    if pd.notnull(row["Inici"]) and pd.notnull(row["Final"]):
+                        p_inici = pd.to_datetime(row["Inici"])
+                        p_final = pd.to_datetime(row["Final"])
+                        ranga_projecte = pd.date_range(start=p_inici, end=p_final)
+                        
+                        # Comptem només els dies que cauen en dia feiner del mes actual
+                        for dia_p in ranga_projecte:
+                            if dia_p in dies_feiners:
+                                dies_ocupats_set.add(dia_p)
+                
+                num_dies_ocupats = len(dies_ocupats_set)
+                pct = min(100, int((num_dies_ocupats / dies_laborables_mes) * 100))
+                ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": num_dies_ocupats})
             
             df_ocupacio = pd.DataFrame(ocupacio_persones)
             
