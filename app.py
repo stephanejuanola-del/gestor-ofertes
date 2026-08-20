@@ -520,6 +520,9 @@ else:
     esforc_per_dept = {dept: 0 for dept in equips.keys()}
     propostes_per_dept = {dept: set() for dept in equips.keys()}
     esforc_per_persona = {p: 0 for p in tots_els_treballadors}
+    propostes_per_persona = {p: set() for p in tots_els_treballadors}
+    lliuraments_per_dia = {}
+    
     ofertes_actives_mes = set()
     personal_actiu_mes = set()
     total_dies_home_investits = 0
@@ -529,6 +532,7 @@ else:
         dept = row["Departament"]
         persona = row["Responsable"]
         projecte = row["Projecte"]
+        data_final_proj = pd.to_datetime(row["Final"])
         
         dies_dins_mes = [d for d in ranga if d in dies_feiners_mes]
         num_dies = len(dies_dins_mes)
@@ -543,6 +547,12 @@ else:
                 propostes_per_dept[dept].add(projecte)
             if persona in esforc_per_persona:
                 esforc_per_persona[persona] += num_dies
+                propostes_per_persona[persona].add(projecte)
+                
+            # Registre de lliuraments finals dins del mes
+            if data_final_proj in dies_feiners_mes:
+                str_dia = data_final_proj.strftime('%d/%m')
+                lliuraments_per_dia[str_dia] = lliuraments_per_dia.get(str_dia, 0) + 1
 
     capacitat_total_equip = len(tots_els_treballadors) * capacitat_unitaria
     ratio_carrega_global = min(100, int((total_dies_home_investits / capacitat_total_equip) * 100)) if capacitat_total_equip > 0 else 0
@@ -595,28 +605,48 @@ else:
     st.divider()
 
     # ==========================================
-    # PUNT 2: GESTIÓ DE RECURSOS I TALENT
+    # PUNT 2: CONTROL DE TALENT I RISC DE PERSONES CLAU
     # ==========================================
-    st.markdown("#### 2. Control de Capacitat i Saturació de Talent")
+    st.markdown("#### 2. Control de Capacitat i Risc de Dependència")
     
     dies_lliures_globals = max(0, capacitat_total_equip - total_dies_home_investits)
+    
+    # 2.1 Càlcul de Risc de Persones Clau (més del 30% de les ofertes o saturats >= 80%)
+    total_ofertes_count = len(ofertes_actives_mes)
+    persones_clau_risc = []
+    
+    for p, propostes in propostes_per_persona.items():
+        count_p = len(propostes)
+        d_p = esforc_per_persona[p]
+        pct_d = int((d_p / capacitat_unitaria) * 100) if capacitat_unitaria > 0 else 0
+        pct_prop = (count_p / total_ofertes_count * 100) if total_ofertes_count > 0 else 0
+        
+        if pct_d >= 80 or pct_prop >= 30:
+            persones_clau_risc.append({
+                "Responsable": p,
+                "Propostes": count_p,
+                "% Ofertes": f"{pct_prop:.0f}%",
+                "Ocupació": f"{pct_d}%"
+            })
+
+    # 2.2 Càlcul de Solapaments Crítics de Lliurament (dies amb >= 3 lliuraments)
+    dias_solapats = [f"{dia} ({num} ofertes)" for dia, num in lliuraments_per_dia.items() if num >= 3]
+
     col_t1, col_t2 = st.columns([1, 2])
     
     with col_t1:
         st.metric("Capacitat Disponible Immediata", f"{dies_lliures_globals} dies/home")
-        st.caption(f"Capacitat teòrica màxima de l'equip: {capacitat_total_equip} d/h")
         
-        saturats = []
-        for p, d in esforc_per_persona.items():
-            pct_p = int((d / capacitat_unitaria) * 100) if capacitat_unitaria > 0 else 0
-            if pct_p >= 80:
-                saturats.append({"Personal": p, "Ocupació": f"{pct_p}%", "Dies": d})
-        
-        if saturats:
-            st.warning("⚠️ **Alertes de Saturació (≥ 80%):**")
-            st.dataframe(pd.DataFrame(saturats), use_container_width=True, hide_index=True)
+        if persones_clau_risc:
+            st.warning("⚠️ **Risc de Persones Clau / Saturació:**")
+            st.dataframe(pd.DataFrame(persones_clau_risc), use_container_width=True, hide_index=True)
         else:
-            st.success("✅ Cap integrant de l'equip supera el 80% de càrrega aquest mes.")
+            st.success("✅ Distribució equilibrada sense dependències crítiques.")
+            
+        if dias_solapats:
+            st.error(f"🔥 **Solapament Crític de Lliuraments:**\n\nDirectes a lliurar el mateix dia: {', '.join(dias_solapats)}")
+        else:
+            st.info("📅 Sense concentració crítica de lliuraments en un mateix dia.")
 
     with col_t2:
         st.caption("📊 **Ràtio d'Ocupació Individual Global (% sobre capacitat mes)**")
