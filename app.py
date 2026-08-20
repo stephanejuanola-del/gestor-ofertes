@@ -20,7 +20,9 @@ CALENDAR_ID = "https://calendar.google.com/calendar/embed?src=sjuanola%40bianna.
 equips = {
     "Ofertes França": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
     "Ofertes Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
-    "Ofertes Internacionals": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"]
+    "Ofertes Internacionals": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
+    "Bianna Brasil": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
+    "Bianna Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"]
 }
 
 # 2. CONNEXIÓ A GOOGLE SHEETS I GOOGLE CALENDAR
