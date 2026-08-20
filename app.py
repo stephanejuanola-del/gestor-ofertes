@@ -194,7 +194,6 @@ st.divider()
 # 6. MÈTRIQUES D'OCUPACIÓ I CAPACITAT
 st.subheader(f"📊 Ocupació de l'Equip a {nom_mes_actual}")
 
-# Calculem la capacitat teòrica del mes
 data_inici_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01")
 data_final_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}")
 tot_dies = pd.date_range(start=data_inici_mes, end=data_final_mes)
@@ -204,25 +203,43 @@ dies_laborables_mes = len(dies_feiners)
 if dies_laborables_mes > 0 and not df_filtrat.empty:
     col_graf, col_mètrica = st.columns([3, 1])
     
-    # Agafem el personal dels departaments seleccionats
     personal_filtrat = df_filtrat["Responsable"].unique()
     
     with col_graf:
         ocupacio_persones = []
         for persona in personal_filtrat:
-            # Calculem els dies d'ofertes per a cada persona
             df_p = df_filtrat[(df_filtrat["Responsable"] == persona) & (~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances"))]
+            
             dies_ocupats_set = set()
+            desglossament_dept = {}
+            
             for _, row in df_p.iterrows():
                 if pd.notnull(row["Inici"]) and pd.notnull(row["Final"]):
                     ranga = pd.date_range(start=pd.to_datetime(row["Inici"]), end=pd.to_datetime(row["Final"]))
+                    dept_row = row["Departament"]
+                    
+                    if dept_row not in desglossament_dept:
+                        desglossament_dept[dept_row] = set()
+                        
                     for dia in ranga:
                         if dia in dies_feiners:
                             dies_ocupats_set.add(dia)
+                            desglossament_dept[dept_row].add(dia)
             
             dies_of = len(dies_ocupats_set)
             pct = min(100, int((dies_of / dies_laborables_mes) * 100))
-            ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": dies_of})
+            
+            # Text detallat de dies per departament
+            detall_text = ", ".join([f"{dept}: {len(d_set)}d" for dept, d_set in desglossament_dept.items() if len(d_set) > 0])
+            if not detall_text:
+                detall_text = "0 dies"
+                
+            ocupacio_persones.append({
+                "Personal": persona, 
+                "Ocupació (%)": pct, 
+                "Dies Ocupats": dies_of,
+                "Desglossament": detall_text
+            })
         
         df_ocupacio = pd.DataFrame(ocupacio_persones)
         
@@ -235,11 +252,15 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
                 text="Ocupació (%)",
                 color="Ocupació (%)",
                 color_continuous_scale="RdYlGn_r",
-                range_x=[0, 100]
+                range_x=[0, 100],
+                hover_data=["Dies Ocupats", "Desglossament"]
             )
             fig_bar.update_traces(texttemplate='%{text}%', textposition='outside')
-            fig_bar.update_layout(height=max(250, len(personal_filtrat) * 40), plot_bgcolor='white')
+            fig_bar.update_layout(height=max(250, len(personal_filtrat) * 45), plot_bgcolor='white')
             st.plotly_chart(fig_bar, use_container_width=True)
+            
+            # Taula de detall a sota
+            st.dataframe(df_ocupacio[["Personal", "Ocupació (%)", "Dies Ocupats", "Desglossament"]], use_container_width=True, hide_index=True)
 
     with col_mètrica:
         st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
