@@ -194,50 +194,39 @@ st.divider()
 # 6. MÈTRIQUES D'OCUPACIÓ I CAPACITAT
 st.subheader(f"📊 Ocupació de l'Equip a {nom_mes_actual}")
 
-# 1. Calculem els dies totals i feiners del mes seleccionat
+# Calculem la capacitat teòrica del mes
 data_inici_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01")
 data_final_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}")
 tot_dies = pd.date_range(start=data_inici_mes, end=data_final_mes)
-
-# Llista de dies feiners (dilluns a divendres que no siguin festius globals)
 dies_feiners = [d for d in tot_dies if d.weekday() < 5 and d.strftime('%Y-%m-%d') not in festius_np]
 dies_laborables_mes = len(dies_feiners)
 
 if dies_laborables_mes > 0 and not df_filtrat.empty:
-    # 2. Identifiquem NOMÉS les persones amb projectes de feina assignats en el filtre actual (excloent vacances)
-    df_projectes_reals = df_filtrat[
-        ~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances")
-    ]
-    personal_actiu = df_projectes_reals["Responsable"].unique()
-
-    if len(personal_actiu) > 0:
-        col_graf, col_mètrica = st.columns([3, 1])
+    col_graf, col_mètrica = st.columns([3, 1])
+    
+    # Agafem el personal dels departaments seleccionats
+    personal_filtrat = df_filtrat["Responsable"].unique()
+    
+    with col_graf:
+        ocupacio_persones = []
+        for persona in personal_filtrat:
+            # Calculem els dies d'ofertes per a cada persona
+            df_p = df_filtrat[(df_filtrat["Responsable"] == persona) & (~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances"))]
+            dies_ocupats_set = set()
+            for _, row in df_p.iterrows():
+                if pd.notnull(row["Inici"]) and pd.notnull(row["Final"]):
+                    ranga = pd.date_range(start=pd.to_datetime(row["Inici"]), end=pd.to_datetime(row["Final"]))
+                    for dia in ranga:
+                        if dia in dies_feiners:
+                            dies_ocupats_set.add(dia)
+            
+            dies_of = len(dies_ocupats_set)
+            pct = min(100, int((dies_of / dies_laborables_mes) * 100))
+            ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": dies_of})
         
-        with col_graf:
-            ocupacio_persones = []
-            
-            # Calculem l'ocupació directament per a cada persona activa
-            for persona in personal_actiu:
-                df_persona = df_projectes_reals[df_projectes_reals["Responsable"] == persona]
-                dies_ocupats_set = set()
-                
-                for _, row in df_persona.iterrows():
-                    if pd.notnull(row["Inici"]) and pd.notnull(row["Final"]):
-                        p_inici = pd.to_datetime(row["Inici"])
-                        p_final = pd.to_datetime(row["Final"])
-                        ranga_projecte = pd.date_range(start=p_inici, end=p_final)
-                        
-                        # Comptem només els dies que cauen en dia feiner del mes actual
-                        for dia_p in ranga_projecte:
-                            if dia_p in dies_feiners:
-                                dies_ocupats_set.add(dia_p)
-                
-                num_dies_ocupats = len(dies_ocupats_set)
-                pct = min(100, int((num_dies_ocupats / dies_laborables_mes) * 100))
-                ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": num_dies_ocupats})
-            
-            df_ocupacio = pd.DataFrame(ocupacio_persones)
-            
+        df_ocupacio = pd.DataFrame(ocupacio_persones)
+        
+        if not df_ocupacio.empty:
             fig_bar = px.bar(
                 df_ocupacio, 
                 x="Ocupació (%)", 
@@ -249,14 +238,12 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
                 range_x=[0, 100]
             )
             fig_bar.update_traces(texttemplate='%{text}%', textposition='outside')
-            fig_bar.update_layout(height=max(250, len(personal_actiu) * 40), plot_bgcolor='white')
+            fig_bar.update_layout(height=max(250, len(personal_filtrat) * 40), plot_bgcolor='white')
             st.plotly_chart(fig_bar, use_container_width=True)
 
-        with col_mètrica:
-            st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
-            st.caption(f"Dies totals mes: {len(tot_dies)}d | Festius/Fins de setmana: {len(tot_dies) - dies_laborables_mes}d")
-    else:
-        st.info("No hi ha cap projecte de feina assignat en els departaments seleccionats per a aquest mes.")
+    with col_mètrica:
+        st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
+        st.caption(f"Dies totals mes: {len(tot_dies)}d | Festius/Fins de setmana: {len(tot_dies) - dies_laborables_mes}d")
 else:
     st.info("Trieu un departament amb activitat per veure l'ocupació.")
 # 7. CALENDARI VISUAL (GANTT I RECURSOS)
