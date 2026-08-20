@@ -518,6 +518,7 @@ else:
     tots_els_treballadors = list(set([p for llista in equips.values() for p in llista]))
     
     esforc_per_dept = {dept: 0 for dept in equips.keys()}
+    propostes_per_dept = {dept: set() for dept in equips.keys()}
     esforc_per_persona = {p: 0 for p in tots_els_treballadors}
     ofertes_actives_mes = set()
     personal_actiu_mes = set()
@@ -527,16 +528,19 @@ else:
         ranga = pd.date_range(start=pd.to_datetime(row["Inici"]), end=pd.to_datetime(row["Final"]))
         dept = row["Departament"]
         persona = row["Responsable"]
+        projecte = row["Projecte"]
         
         dies_dins_mes = [d for d in ranga if d in dies_feiners_mes]
         num_dies = len(dies_dins_mes)
         
         if num_dies > 0:
-            ofertes_actives_mes.add(row["Projecte"])
+            ofertes_actives_mes.add(projecte)
             personal_actiu_mes.add(persona)
             total_dies_home_investits += num_dies
+            
             if dept in esforc_per_dept:
                 esforc_per_dept[dept] += num_dies
+                propostes_per_dept[dept].add(projecte)
             if persona in esforc_per_persona:
                 esforc_per_persona[persona] += num_dies
 
@@ -554,7 +558,11 @@ else:
     kpi4.metric("Personal Encarregat", f"{len(personal_actiu_mes)} / {len(tots_els_treballadors)}")
 
     df_esforc = pd.DataFrame([
-        {"Departament": dept, "Dies/Home": dies} 
+        {
+            "Departament": dept, 
+            "Nº Propostes": len(propostes_per_dept[dept]),
+            "Dies/Home": dies
+        } 
         for dept, dies in esforc_per_dept.items() if dies > 0
     ])
 
@@ -576,7 +584,11 @@ else:
         st.caption("📋 **Resum Executiu per Àrea**")
         if not df_esforc.empty:
             df_esforc["% Esforç"] = ((df_esforc["Dies/Home"] / total_dies_home_investits) * 100).round(1).astype(str) + "%"
-            st.dataframe(df_esforc.sort_values(by="Dies/Home", ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_esforc[["Departament", "Nº Propostes", "Dies/Home", "% Esforç"]].sort_values(by="Dies/Home", ascending=False), 
+                use_container_width=True, 
+                hide_index=True
+            )
         else:
             st.write("Sense dades.")
 
@@ -588,14 +600,12 @@ else:
     st.markdown("#### 2. Control de Capacitat i Saturació de Talent")
     
     dies_lliures_globals = max(0, capacitat_total_equip - total_dies_home_investits)
-    
     col_t1, col_t2 = st.columns([1, 2])
     
     with col_t1:
         st.metric("Capacitat Disponible Immediata", f"{dies_lliures_globals} dies/home")
         st.caption(f"Capacitat teòrica màxima de l'equip: {capacitat_total_equip} d/h")
         
-        # Identificació de personal operat al límit (>= 80% d'ocupació)
         saturats = []
         for p, d in esforc_per_persona.items():
             pct_p = int((d / capacitat_unitaria) * 100) if capacitat_unitaria > 0 else 0
@@ -632,14 +642,12 @@ else:
     
     mes_act = st.session_state.mes_vista
     any_act = st.session_state.any_vista
-    
     projeccio_dades = []
     
     for i in range(3):
         m = (mes_act - 1 + i) % 12 + 1
         a = any_act + ((mes_act - 1 + i) // 12)
         
-        # Càlcul de dies feiners del mes projectat
         ultim_d_proj = calendar.monthrange(a, m)[1]
         d_inici_p = pd.to_datetime(f"{a}-{m:02d}-01")
         d_final_p = pd.to_datetime(f"{a}-{m:02d}-{ultim_d_proj}")
@@ -662,7 +670,6 @@ else:
         })
         
     df_projeccio = pd.DataFrame(projeccio_dades)
-    
     col_p1, col_p2 = st.columns([1, 2])
     
     with col_p1:
