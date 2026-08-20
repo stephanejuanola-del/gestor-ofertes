@@ -22,10 +22,9 @@ equips = {
     "Ofertes Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
     "Ofertes Internacionals": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
     "Bianna Brasil": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
-    "Bianna Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"]
+    "Bianna Recycling": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"],
     "Bianna Mexico": ["Brendan", "Olivier", "Damien", "Agustín", "JordiVila", "Adria", "StephaneJuanola", "RicardJoan", "IagoParga", "David", "Samuel"]
 }
-
 # 2. CONNEXIÓ A GOOGLE SHEETS I GOOGLE CALENDAR
 @st.cache_resource
 def connect_google_services():
