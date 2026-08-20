@@ -479,3 +479,30 @@ with st.expander("✏️ Base de dades completa (Organitzada per Departaments)")
         
         st.success("✅ La base de dades s'ha actualitzat correctament a Google Sheets!")
         st.rerun()
+# 9. SECCIÓ PROTEGIDA PER A DIRECCIÓ (CEO / CCO)
+st.divider()
+st.subheader("🔒 Àrea Executiva (KPIs i Direcció)")
+
+# Inicialitzem l'estat d'autenticació
+if "autenticat_direccio" not in st.session_state:
+    st.session_state.autenticat_direccio = False
+
+if not st.session_state.autenticat_direccio:
+    contrasenya_input = st.text_input("Introdueix la contrasenya d'accés executiu:", type="password")
+    if st.button("Accedir al Panell de Direcció"):
+        if contrasenya_input == "Bianna7412!100":
+            st.session_state.autenticat_direccio = True
+            st.success("Accés autoritzat.")
+            st.rerun()
+        else:
+            st.error("Contrasenya incorrecta.")
+else:
+    if st.button("🔒 Tancar sessió de direcció"):
+        st.session_state.autenticat_direccio = False
+        st.rerun()
+        
+    st.markdown("### 📈 Panell de Gestió Executiva")
+    st.info("Benvingut/da al panell de control executiu. Aquí es mostren les mètriques d'activitat global.")
+    
+    # --- AQUÍ AFEGIREM ELS KPIS EN EL SEGÜENT PAS ---
+    st.write("Espai preparat per carregar els KPI's de direcció.")
