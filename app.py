@@ -191,59 +191,56 @@ df_filtrat = st.session_state.ofertes[
 ]
 
 st.divider()
-# 6. BARRA D'OCUPACIÓ REAL
-st.subheader(f"🔥 Ocupació Global del Personal ({nom_mes_actual} {st.session_state.any_vista})")
+# 6. MÈTRIQUES D'OCUPACIÓ I CAPACITAT
+st.subheader(f"📊 Ocupació de l'Equip a {nom_mes_actual}")
 
-if departaments_seleccionats:
-    personal_unic = sorted(list(set([persona for dept in departaments_seleccionats for persona in equips[dept]])))
-    num_columnes = 4
-    columnes = st.columns(num_columnes)
+# Calculem la capacitat del mes (dies feiners desglossats)
+dies_laborables_mes, festius_mes, dies_totals_mes = calcular_dies_feiners_mes(
+    st.session_state.any_vista, st.session_state.mes_vista, festius_np
+)
+
+if dies_laborables_mes > 0 and not df_filtrat.empty:
+    # 1. Identifiquem NOMÉS les persones amb feina assignada en el filtre actual
+    personal_actiu = df_filtrat[
+        ~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances")
+    ]["Responsable"].unique()
+
+    # 2. Mostrem les barres d'ocupació ÚNICAMENT d'aquest personal actiu
+    col_graf, col_mètrica = st.columns([3, 1])
     
-    for idx, persona in enumerate(personal_unic):
-        col = columnes[idx % num_columnes]
-        ofertes_persona = df_filtrat[df_filtrat["Responsable"] == persona]
-        
-        total_dies_mes = 0
-        desglos_dept = {}
-        
-        for _, fila in ofertes_persona.iterrows():
-            if pd.notnull(fila["Inici"]) and pd.notnull(fila["Final"]):
-                inici_oferta = pd.to_datetime(fila["Inici"]).date()
-                final_oferta = pd.to_datetime(fila["Final"]).date()
-                
-                inici_real = max(inici_oferta, inici_mes_dt)
-                final_real = min(final_oferta, final_mes_dt)
-                
-                if inici_real <= final_real:
-                    dies = np.busday_count(inici_real, final_real + pd.Timedelta(days=1), holidays=festius_np)
-                    total_dies_mes += dies
-                    dept = fila["Departament"]
-                    desglos_dept[dept] = desglos_dept.get(dept, 0) + dies
-        
-        percentatge_real = int((total_dies_mes / dies_habils_mes) * 100) if dies_habils_mes > 0 else 0
-        percentatge_barra = min(percentatge_real, 100)
-        
-        with col:
-            indicador = "🔴" if percentatge_real > 100 else ("🟡" if percentatge_real >= 80 else "🟢")
-            st.metric(
-                label=f"{indicador} {persona}", 
-                value=f"{percentatge_real}%", 
-                delta=f"{total_dies_mes} de {dies_habils_mes} dies hàbils", 
-                delta_color="off"
+    with col_graf:
+        ocupacio_persones = []
+        for persona in personal_actiu:
+            dies_of, dies_vac = calcular_dies_ocupats_persona(
+                df_filtrat, persona, st.session_state.any_vista, st.session_state.mes_vista, festius_np
             )
-            st.progress(percentatge_barra / 100.0)
-            
-            if desglos_dept:
-                text_desglos = " | ".join([f"**{d.replace('Ofertes ', '')}:** {v}d" for d, v in desglos_dept.items()])
-                st.caption(f"📌 {text_desglos}")
-            else:
-                st.caption("✨ Sense feina assignada")
-            st.write("")
+            pct = min(100, int((dies_of / dies_laborables_mes) * 100))
+            ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": dies_of})
+        
+        df_ocupacio = pd.DataFrame(ocupacio_persones)
+        
+        if not df_ocupacio.empty:
+            fig_bar = px.bar(
+                df_ocupacio, 
+                x="Ocupació (%)", 
+                y="Personal", 
+                orientation='h',
+                text="Ocupació (%)",
+                color="Ocupació (%)",
+                color_continuous_scale="RdYlGn_r",
+                range_x=[0, 100]
+            )
+            fig_bar.update_traces(texttemplate='%{text}%', textposition='outside')
+            fig_bar.update_layout(height=max(250, len(personal_actiu) * 35), plot_bgcolor='white')
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("No hi ha projectes de feina per mostrar l'ocupació en aquest departament.")
+
+    with col_mètrica:
+        st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
+        st.caption(f"Dies totals mes: {dies_totals_mes}d | Festius/Fins de setmana: {dies_totals_mes - dies_laborables_mes}d")
 else:
-    st.info("Selecciona com a mínim un departament per veure l'ocupació.")
-
-st.divider()
-
+    st.info("Trieu un departament amb activitat per veure l'ocupació.")
 # 7. CALENDARI VISUAL (GANTT I RECURSOS)
 st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
