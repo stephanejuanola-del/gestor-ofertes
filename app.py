@@ -500,12 +500,10 @@ else:
         st.session_state.autenticat_direccio = False
         st.rerun()
         
-    st.markdown(f"### 📈 Mètriques Estratègiques Globals — {nom_mes_actual.upper()} {st.session_state.any_vista}")
+    st.markdown(f"### 📈 Panell de Gestió Executiva — {nom_mes_actual.upper()} {st.session_state.any_vista}")
     
-    # 1. PREPARACIÓ DE LES DADES GLOBALS DEL MES
+    # --- PREPARACIÓ DE DADES GLOBALS ---
     df_global = st.session_state.ofertes.copy()
-    
-    # Excloem vacances i festius per als càlculs d'esforç real
     df_ofertes_reals = df_global[
         (~df_global["Projecte"].astype(str).str.lower().str.contains("vacances")) &
         (df_global["Departament"] != "Festiu Empresa") &
@@ -513,14 +511,14 @@ else:
         (pd.notnull(df_global["Final"]))
     ].copy()
     
-    # Calculem els dies feiners que cauen dins del mes actual
     data_inici_m = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01")
     data_final_m = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}")
     dies_feiners_mes = [d for d in pd.date_range(data_inici_m, data_final_m) if d.weekday() < 5 and d.strftime('%Y-%m-%d') not in festius_np]
     capacitat_unitaria = len(dies_feiners_mes)
+    tots_els_treballadors = list(set([p for llista in equips.values() for p in llista]))
     
-    # Comptabilitzem els dies/home dedicats per departament
     esforc_per_dept = {dept: 0 for dept in equips.keys()}
+    esforc_per_persona = {p: 0 for p in tots_els_treballadors}
     ofertes_actives_mes = set()
     personal_actiu_mes = set()
     total_dies_home_investits = 0
@@ -528,67 +526,155 @@ else:
     for _, row in df_ofertes_reals.iterrows():
         ranga = pd.date_range(start=pd.to_datetime(row["Inici"]), end=pd.to_datetime(row["Final"]))
         dept = row["Departament"]
+        persona = row["Responsable"]
         
-        # Filtrem els dies que cauen en el mes visualitzat
         dies_dins_mes = [d for d in ranga if d in dies_feiners_mes]
         num_dies = len(dies_dins_mes)
         
         if num_dies > 0:
             ofertes_actives_mes.add(row["Projecte"])
-            personal_actiu_mes.add(row["Responsable"])
+            personal_actiu_mes.add(persona)
             total_dies_home_investits += num_dies
             if dept in esforc_per_dept:
                 esforc_per_dept[dept] += num_dies
-            else:
-                esforc_per_dept[dept] = num_dies
+            if persona in esforc_per_persona:
+                esforc_per_persona[persona] += num_dies
 
-    # Càlcul de capacitat total del departament (Tots els treballadors x dies feiners del mes)
-    tots_els_treballadors = list(set([p for llista in equips.values() for p in llista]))
     capacitat_total_equip = len(tots_els_treballadors) * capacitat_unitaria
     ratio_carrega_global = min(100, int((total_dies_home_investits / capacitat_total_equip) * 100)) if capacitat_total_equip > 0 else 0
 
-    # 2. TARGETES KPIS PRINCIPALS
+    # ==========================================
+    # PUNT 1: MÈTRIQUES ESTRATÈGIQUES GLOBALS
+    # ==========================================
+    st.markdown("#### 1. Mètriques Estratègiques Globals")
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     kpi1.metric("Ofertes Actives", f"{len(ofertes_actives_mes)} propostes")
     kpi2.metric("Dies/Home Invertits", f"{total_dies_home_investits} dies")
     kpi3.metric("Ràtio Càrrega Global", f"{ratio_carrega_global}%")
     kpi4.metric("Personal Encarregat", f"{len(personal_actiu_mes)} / {len(tots_els_treballadors)}")
 
-    st.divider()
-
-    # 3. GRÀFIC D'ESTRATÈGIA I REPARTIMENT PER MERCAT
     df_esforc = pd.DataFrame([
         {"Departament": dept, "Dies/Home": dies} 
         for dept, dies in esforc_per_dept.items() if dies > 0
     ])
 
     col_pie, col_resum = st.columns([2, 1])
-
     with col_pie:
-        st.subheader("🌎 Repartiment de l'Esforç Tècnic per Mercat")
+        st.caption("🌎 **Repartiment de l'Esforç Tècnic per Mercat**")
         if not df_esforc.empty:
             fig_pie = px.pie(
-                df_esforc, 
-                values="Dies/Home", 
-                names="Departament", 
-                hole=0.45,
+                df_esforc, values="Dies/Home", names="Departament", hole=0.45,
                 color_discrete_sequence=px.colors.qualitative.Set2
             )
             fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-            fig_pie.update_layout(showlegend=False, height=350, margin=dict(t=20, b=20, l=20, r=20))
+            fig_pie.update_layout(showlegend=False, height=280, margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
-            st.info("No hi ha activitat registrada en aquest mes per mostrar el repartiment per mercats.")
+            st.info("Sense activitat en aquest mes.")
 
     with col_resum:
-        st.subheader("📋 Resum Executiu")
+        st.caption("📋 **Resum Executiu per Àrea**")
         if not df_esforc.empty:
-            df_esforc["% de l'Esforç"] = ((df_esforc["Dies/Home"] / total_dies_home_investits) * 100).round(1).astype(str) + "%"
-            st.dataframe(
-                df_esforc.sort_values(by="Dies/Home", ascending=False), 
-                use_container_width=True, 
-                hide_index=True
-            )
-            st.caption(f"Capacitat teòrica màxima de l'equip: {capacitat_total_equip} dies/home.")
+            df_esforc["% Esforç"] = ((df_esforc["Dies/Home"] / total_dies_home_investits) * 100).round(1).astype(str) + "%"
+            st.dataframe(df_esforc.sort_values(by="Dies/Home", ascending=False), use_container_width=True, hide_index=True)
         else:
             st.write("Sense dades.")
+
+    st.divider()
+
+    # ==========================================
+    # PUNT 2: GESTIÓ DE RECURSOS I TALENT
+    # ==========================================
+    st.markdown("#### 2. Control de Capacitat i Saturació de Talent")
+    
+    dies_lliures_globals = max(0, capacitat_total_equip - total_dies_home_investits)
+    
+    col_t1, col_t2 = st.columns([1, 2])
+    
+    with col_t1:
+        st.metric("Capacitat Disponible Immediata", f"{dies_lliures_globals} dies/home")
+        st.caption(f"Capacitat teòrica màxima de l'equip: {capacitat_total_equip} d/h")
+        
+        # Identificació de personal operat al límit (>= 80% d'ocupació)
+        saturats = []
+        for p, d in esforc_per_persona.items():
+            pct_p = int((d / capacitat_unitaria) * 100) if capacitat_unitaria > 0 else 0
+            if pct_p >= 80:
+                saturats.append({"Personal": p, "Ocupació": f"{pct_p}%", "Dies": d})
+        
+        if saturats:
+            st.warning("⚠️ **Alertes de Saturació (≥ 80%):**")
+            st.dataframe(pd.DataFrame(saturats), use_container_width=True, hide_index=True)
+        else:
+            st.success("✅ Cap integrant de l'equip supera el 80% de càrrega aquest mes.")
+
+    with col_t2:
+        st.caption("📊 **Ràtio d'Ocupació Individual Global (% sobre capacitat mes)**")
+        data_talent = []
+        for p, d in esforc_per_persona.items():
+            pct_p = min(100, int((d / capacitat_unitaria) * 100)) if capacitat_unitaria > 0 else 0
+            data_talent.append({"Personal": p, "Ocupació (%)": pct_p})
+            
+        df_talent = pd.DataFrame(data_talent).sort_values(by="Ocupació (%)", ascending=True)
+        fig_talent = px.bar(
+            df_talent, x="Ocupació (%)", y="Personal", orientation='h',
+            color="Ocupació (%)", color_continuous_scale="RdYlGn_r", range_x=[0, 100]
+        )
+        fig_talent.update_layout(height=max(220, len(tots_els_treballadors) * 22), plot_bgcolor='white')
+        st.plotly_chart(fig_talent, use_container_width=True)
+
+    st.divider()
+
+    # ==========================================
+    # PUNT 3: PROJECCIÓ I TENDÈNCIA TEMPORAL (3 MESOS)
+    # ==========================================
+    st.markdown("#### 3. Projecció Temporal de la Càrrega (Trimestre Actiu)")
+    
+    mes_act = st.session_state.mes_vista
+    any_act = st.session_state.any_vista
+    
+    projeccio_dades = []
+    
+    for i in range(3):
+        m = (mes_act - 1 + i) % 12 + 1
+        a = any_act + ((mes_act - 1 + i) // 12)
+        
+        # Càlcul de dies feiners del mes projectat
+        ultim_d_proj = calendar.monthrange(a, m)[1]
+        d_inici_p = pd.to_datetime(f"{a}-{m:02d}-01")
+        d_final_p = pd.to_datetime(f"{a}-{m:02d}-{ultim_d_proj}")
+        d_feiners_p = [d for d in pd.date_range(d_inici_p, d_final_p) if d.weekday() < 5 and d.strftime('%Y-%m-%d') not in festius_np]
+        
+        cap_total_p = len(tots_els_treballadors) * len(d_feiners_p)
+        esforc_p = 0
+        
+        for _, row in df_ofertes_reals.iterrows():
+            ranga = pd.date_range(start=pd.to_datetime(row["Inici"]), end=pd.to_datetime(row["Final"]))
+            esforc_p += len([d for d in ranga if d in d_feiners_p])
+            
+        nom_m_p = calendar.month_name[m].capitalize()
+        pct_proj = min(100, int((esforc_p / cap_total_p) * 100)) if cap_total_p > 0 else 0
+        
+        projeccio_dades.append({
+            "Mes": f"{nom_m_p} {a}",
+            "Dies/Home Invertits": esforc_p,
+            "Càrrega Global (%)": pct_proj
+        })
+        
+    df_projeccio = pd.DataFrame(projeccio_dades)
+    
+    col_p1, col_p2 = st.columns([1, 2])
+    
+    with col_p1:
+        st.caption("📈 **Resum Trimestral Prevista**")
+        st.dataframe(df_projeccio, use_container_width=True, hide_index=True)
+        
+    with col_p2:
+        st.caption("🔮 **Evolució de la Càrrega (%) Pròxims 3 Mesos**")
+        fig_proj = px.line(
+            df_projeccio, x="Mes", y="Càrrega Global (%)", markers=True, text="Càrrega Global (%)",
+            range_y=[0, 100]
+        )
+        fig_proj.update_traces(textposition="top center", line_color="firebrick", line_width=3)
+        fig_proj.update_layout(height=240, plot_bgcolor='white')
+        st.plotly_chart(fig_proj, use_container_width=True)
