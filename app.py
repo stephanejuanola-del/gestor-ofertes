@@ -176,7 +176,6 @@ with col_dept:
         default=list(equips.keys())
     )
 
-# Llista única amb tots els membres de l'equip
 tots_els_treballadors = sorted(list(set([persona for llista in equips.values() for persona in llista])))
 
 with col_pers:
@@ -187,13 +186,26 @@ with col_pers:
         placeholder="Tot el personal"
     )
 
-# 1. Filtrem primer per departament seleccionat i vacances
-df_filtrat = st.session_state.ofertes[
-    (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) | 
-    (st.session_state.ofertes["Projecte"].astype(str).str.lower().str.contains("vacances"))
+# 1. Agafem primer les dades dels departaments seleccionats
+df_dept = st.session_state.ofertes[
+    st.session_state.ofertes["Departament"].isin(departaments_seleccionats)
 ]
 
-# 2. Si s'ha seleccionat alguna persona al nou filtre, reduïm el resultat a aquestes persones
+# 2. Identifiquem NOMÉS el personal que té projectes de feina reals (excloent "Vacances")
+personal_amb_projectes = df_dept[
+    ~df_dept["Projecte"].astype(str).str.lower().str.contains("vacances")
+]["Responsable"].unique()
+
+# 3. Filtrem: NOMÉS es mostren les persones amb projecte real en aquest departament (amb la seva feina + les seves vacances)
+df_filtrat = st.session_state.ofertes[
+    (st.session_state.ofertes["Responsable"].isin(personal_amb_projectes)) &
+    (
+        (st.session_state.ofertes["Departament"].isin(departaments_seleccionats)) | 
+        (st.session_state.ofertes["Projecte"].astype(str).str.lower().str.contains("vacances"))
+    )
+]
+
+# 4. Si s'utilitza el filtre opcional per persona, apliquem aquesta restricció extra
 if persona_seleccionada:
     df_filtrat = df_filtrat[df_filtrat["Responsable"].isin(persona_seleccionada)]
 
