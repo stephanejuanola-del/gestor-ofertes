@@ -194,10 +194,14 @@ st.divider()
 # 6. MÈTRIQUES D'OCUPACIÓ I CAPACITAT
 st.subheader(f"📊 Ocupació de l'Equip a {nom_mes_actual}")
 
-# Calculem la capacitat del mes (dies feiners desglossats)
-dies_laborables_mes, festius_mes, dies_totals_mes = calcular_dies_feiners_mes(
-    st.session_state.any_vista, st.session_state.mes_vista, festius_np
-)
+# Calculem els dies totals i feiners del mes seleccionat
+data_inici_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01")
+data_final_mes = pd.to_datetime(f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}")
+tot_dies = pd.date_range(start=data_inici_mes, end=data_final_mes)
+
+# Filtrem caps de setmana i festius per obtenir la capacitat teòrica
+dies_feiners = [d for d in tot_dies if d.weekday() < 5 and d.strftime('%Y-%m-%d') not in festius_np]
+dies_laborables_mes = len(dies_feiners)
 
 if dies_laborables_mes > 0 and not df_filtrat.empty:
     # 1. Identifiquem NOMÉS les persones amb feina assignada en el filtre actual
@@ -205,21 +209,20 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
         ~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances")
     ]["Responsable"].unique()
 
-    # 2. Mostrem les barres d'ocupació ÚNICAMENT d'aquest personal actiu
-    col_graf, col_mètrica = st.columns([3, 1])
-    
-    with col_graf:
-        ocupacio_persones = []
-        for persona in personal_actiu:
-            dies_of, dies_vac = calcular_dies_ocupats_persona(
-                df_filtrat, persona, st.session_state.any_vista, st.session_state.mes_vista, festius_np
-            )
-            pct = min(100, int((dies_of / dies_laborables_mes) * 100))
-            ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": dies_of})
+    if len(personal_actiu) > 0:
+        col_graf, col_mètrica = st.columns([3, 1])
         
-        df_ocupacio = pd.DataFrame(ocupacio_persones)
-        
-        if not df_ocupacio.empty:
+        with col_graf:
+            ocupacio_persones = []
+            for persona in personal_actiu:
+                dies_of, dies_vac = calcular_dies_ocupats_persona(
+                    df_filtrat, persona, st.session_state.any_vista, st.session_state.mes_vista, festius_np
+                )
+                pct = min(100, int((dies_of / dies_laborables_mes) * 100))
+                ocupacio_persones.append({"Personal": persona, "Ocupació (%)": pct, "Dies": dies_of})
+            
+            df_ocupacio = pd.DataFrame(ocupacio_persones)
+            
             fig_bar = px.bar(
                 df_ocupacio, 
                 x="Ocupació (%)", 
@@ -231,14 +234,14 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
                 range_x=[0, 100]
             )
             fig_bar.update_traces(texttemplate='%{text}%', textposition='outside')
-            fig_bar.update_layout(height=max(250, len(personal_actiu) * 35), plot_bgcolor='white')
+            fig_bar.update_layout(height=max(250, len(personal_actiu) * 40), plot_bgcolor='white')
             st.plotly_chart(fig_bar, use_container_width=True)
-        else:
-            st.info("No hi ha projectes de feina per mostrar l'ocupació en aquest departament.")
 
-    with col_mètrica:
-        st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
-        st.caption(f"Dies totals mes: {dies_totals_mes}d | Festius/Fins de setmana: {dies_totals_mes - dies_laborables_mes}d")
+        with col_mètrica:
+            st.metric("Capacitat teòrica/persona", f"{dies_laborables_mes} dies")
+            st.caption(f"Dies totals mes: {len(tot_dies)}d | Festius/Fins de setmana: {len(tot_dies) - dies_laborables_mes}d")
+    else:
+        st.info("No hi ha cap projecte de feina assignat en els departaments seleccionats per a aquest mes.")
 else:
     st.info("Trieu un departament amb activitat per veure l'ocupació.")
 # 7. CALENDARI VISUAL (GANTT I RECURSOS)
