@@ -292,20 +292,6 @@ else:
 # 7. CALENDARI D'OFERTES
 st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
-# Lliscador temporal per moure's entre mesos (Gener - Desembre)
-mes_slider = st.slider(
-    "Selecciona el mes a visualitzar:", 
-    min_value=1, 
-    max_value=12, 
-    value=st.session_state.mes_vista,
-    format="%d"
-)
-
-# Si l'usuari mou el lliscador, actualitzem el mes de la sessió
-if mes_slider != st.session_state.mes_vista:
-    st.session_state.mes_vista = mes_slider
-    st.rerun()
-
 estil_vista = st.radio(
     "Tria l'estil de visualització:",
     ["Vista per Personal (Estil Recursos)", "Vista per Projectes (Estil Gantt)"],
