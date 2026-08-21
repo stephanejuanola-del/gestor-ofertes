@@ -290,33 +290,22 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
 else:
     st.info("Trieu un departament amb activitat per veure l'ocupació.")
 # 7. CALENDARI D'OFERTES
-st.subheader("📅 Calendari d'Ofertes")
+st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
-# --- NAVEGADOR TEMPORAL (Moure's de mes cap a l'esquerra / dreta) ---
-col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
+# Lliscador temporal per moure's entre mesos (Gener - Desembre)
+mes_slider = st.slider(
+    "Selecciona el mes a visualitzar:", 
+    min_value=1, 
+    max_value=12, 
+    value=st.session_state.mes_vista,
+    format="%d"
+)
 
-with col_nav1:
-    if st.button("⬅️ Mes Anterior"):
-        if st.session_state.mes_vista == 1:
-            st.session_state.mes_vista = 12
-            st.session_state.any_vista -= 1
-        else:
-            st.session_state.mes_vista -= 1
-        st.rerun()
+# Si l'usuari mou el lliscador, actualitzem el mes de la sessió
+if mes_slider != st.session_state.mes_vista:
+    st.session_state.mes_vista = mes_slider
+    st.rerun()
 
-with col_nav2:
-    st.markdown(f"<h4 style='text-align: center;'>{nom_mes_actual.upper()} {st.session_state.any_vista}</h4>", unsafe_allow_html=True)
-
-with col_nav3:
-    if st.button("Mes Següent ➡️"):
-        if st.session_state.mes_vista == 12:
-            st.session_state.mes_vista = 1
-            st.session_state.any_vista += 1
-        else:
-            st.session_state.mes_vista += 1
-        st.rerun()
-
-# --- OPIONS DE VISUALITZACIÓ ---
 estil_vista = st.radio(
     "Tria l'estil de visualització:",
     ["Vista per Personal (Estil Recursos)", "Vista per Projectes (Estil Gantt)"],
@@ -337,18 +326,15 @@ if not df_filtrat.empty:
         x_end="Final",
         y=eix_y,
         color="Projecte",
+        title=f"MES DE {nom_mes_actual.upper()} {st.session_state.any_vista}",
         hover_data=["Departament", "Responsable", "Projecte"]
     )
     
     fig_gantt.update_yaxes(autorange="reversed")
-    fig_gantt.update_layout(
-        height=max(400, len(df_gantt[eix_y].unique()) * 35), 
-        plot_bgcolor='white',
-        margin=dict(t=10, b=10)
-    )
+    fig_gantt.update_layout(height=max(400, len(df_gantt[eix_y].unique()) * 35), plot_bgcolor='white')
     st.plotly_chart(fig_gantt, use_container_width=True)
 else:
-    st.info("No hi ha dades per mostrar al calendari amb els filtres seleccionats per a aquest mes.")
+    st.info("No hi ha dades per mostrar al calendari amb els filtres seleccionats.")
 
 # 8. TAULA EDITABLE PER DEPARTAMENTS
 with st.expander("✏️ Base de dades completa (Organitzada per Departaments)"):
