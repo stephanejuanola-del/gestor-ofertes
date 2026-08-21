@@ -416,75 +416,7 @@ if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
         st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
 else:
     st.warning("No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
-# 7.1 SEGUIMENT DE DOCUMENTACIÓ D'OFERTES
-st.markdown("### 📋 Seguiment de Documentació i Lliurables per Oferta")
 
-# Inicialitzem la taula de documentació en la sessió si no existeix
-if "documents_ofertes" not in st.session_state:
-    st.session_state.documents_ofertes = pd.DataFrame([
-        {"Oferta": "BEAUCAIRE", "Document": "Memòria Tècnica", "Estat": True, "Data Límit": "2026-08-17"},
-        {"Oferta": "BEAUCAIRE", "Document": "Fitxa Econòmica", "Estat": False, "Data Límit": "2026-08-17"},
-        {"Oferta": "VALORYS", "Document": "Plànols d'implantació", "Estat": False, "Data Límit": "2026-08-22"}
-    ])
-
-# Assegurem que el tipus de dada sigui booleà per evitar l'error de Streamlit
-st.session_state.documents_ofertes["Estat"] = st.session_state.documents_ofertes["Estat"].astype(bool)
-
-# Obtenim la llista d'ofertes actives dels departaments filtrats
-ofertes_actives = df_filtrat[
-    ~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances")
-]["Projecte"].unique().tolist()
-
-col_doc1, col_doc2 = st.columns([1, 2])
-
-with col_doc1:
-    st.caption("➕ **Afegir nou document a l'oferta**")
-    with st.form("form_nou_doc", clear_on_submit=True):
-        oferta_sel = st.selectbox("Selecciona Oferta:", options=ofertes_actives if ofertes_actives else ["Sense ofertes"])
-        doc_nom = st.text_input("Nom del document / tasca:", placeholder="Ex: Memòria Justificativa")
-        data_doc = st.date_input("Data de lliurament:")
-        
-        btn_afegir_doc = st.form_submit_button("Afegir Document")
-        
-        if btn_afegir_doc and doc_nom and oferta_sel != "Sense ofertes":
-            nou_registre = pd.DataFrame([{
-                "Oferta": oferta_sel,
-                "Document": doc_nom,
-                "Estat": False,
-                "Data Límit": str(data_doc)
-            }])
-            st.session_state.documents_ofertes = pd.concat([st.session_state.documents_ofertes, nou_registre], ignore_index=True)
-            st.session_state.documents_ofertes["Estat"] = st.session_state.documents_ofertes["Estat"].astype(bool)
-            st.success("Document afegit correctament!")
-            st.rerun()
-
-with col_doc2:
-    st.caption("☑️ **Llista de comprovació (Marca quan estigui llest)**")
-    
-    # Filtrem la taula de documents per les ofertes visibles al filtre actual
-    df_docs_visibles = st.session_state.documents_ofertes[
-        st.session_state.documents_ofertes["Oferta"].isin(ofertes_actives)
-    ].copy()
-    
-    if not df_docs_visibles.empty:
-        df_docs_visibles["Estat"] = df_docs_visibles["Estat"].astype(bool)
-        
-        df_docs_editat = st.data_editor(
-            df_docs_visibles,
-            column_config={
-                "Estat": st.column_config.CheckboxColumn("Llest?", default=False),
-                "Data Límit": st.column_config.DateColumn("Lliurament", format="YYYY-MM-DD")
-            },
-            disabled=["Oferta"],
-            use_container_width=True,
-            hide_index=True,
-            key="editor_documents"
-        )
-        
-        # Sincronitzem els canvis directament
-        st.session_state.documents_ofertes.loc[df_docs_editat.index, "Estat"] = df_docs_editat["Estat"]
-    else:
-        st.info("No hi ha documents registrats per a les ofertes actuals.")
 
 # 8. TAULA EDITABLE PER DEPARTAMENTS
 with st.expander("✏️ Base de dades completa (Organitzada per Departaments)"):
