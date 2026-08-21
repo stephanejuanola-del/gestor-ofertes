@@ -427,6 +427,9 @@ if "documents_ofertes" not in st.session_state:
         {"Oferta": "VALORYS", "Document": "Plànols d'implantació", "Estat": False, "Data Límit": "2026-08-22"}
     ])
 
+# Assegurem que el tipus de dada sigui booleà per evitar l'error de Streamlit
+st.session_state.documents_ofertes["Estat"] = st.session_state.documents_ofertes["Estat"].astype(bool)
+
 # Obtenim la llista d'ofertes actives dels departaments filtrats
 ofertes_actives = df_filtrat[
     ~df_filtrat["Projecte"].astype(str).str.lower().str.contains("vacances")
@@ -451,6 +454,7 @@ with col_doc1:
                 "Data Límit": str(data_doc)
             }])
             st.session_state.documents_ofertes = pd.concat([st.session_state.documents_ofertes, nou_registre], ignore_index=True)
+            st.session_state.documents_ofertes["Estat"] = st.session_state.documents_ofertes["Estat"].astype(bool)
             st.success("Document afegit correctament!")
             st.rerun()
 
@@ -460,9 +464,11 @@ with col_doc2:
     # Filtrem la taula de documents per les ofertes visibles al filtre actual
     df_docs_visibles = st.session_state.documents_ofertes[
         st.session_state.documents_ofertes["Oferta"].isin(ofertes_actives)
-    ]
+    ].copy()
     
     if not df_docs_visibles.empty:
+        df_docs_visibles["Estat"] = df_docs_visibles["Estat"].astype(bool)
+        
         df_docs_editat = st.data_editor(
             df_docs_visibles,
             column_config={
@@ -475,8 +481,8 @@ with col_doc2:
             key="editor_documents"
         )
         
-        # Sincronitzem els canvis de les caselles marcades
-        st.session_state.documents_ofertes.update(df_docs_editat)
+        # Sincronitzem els canvis directament
+        st.session_state.documents_ofertes.loc[df_docs_editat.index, "Estat"] = df_docs_editat["Estat"]
     else:
         st.info("No hi ha documents registrats per a les ofertes actuals.")
 
