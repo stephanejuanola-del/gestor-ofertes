@@ -289,66 +289,133 @@ if dies_laborables_mes > 0 and not df_filtrat.empty:
         st.caption(f"Dies totals mes: {len(tot_dies)}d | Festius/Fins de setmana: {len(tot_dies) - dies_laborables_mes}d")
 else:
     st.info("Trieu un departament amb activitat per veure l'ocupació.")
-# 7. CALENDARI D'OFERTES
-st.subheader("📅 Calendari d'Ofertes")
+# 7. CALENDARI VISUAL (GANTT I RECURSOS)
+st.subheader(f"📅 Calendari d'Ofertes de {nom_mes_actual}")
 
-# --- NAVEGADOR TEMPORAL (Moure's de mes cap a l'esquerra / dreta) ---
-col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
+if not df_filtrat.empty and not df_filtrat["Inici"].isnull().all():
+    df_net = df_filtrat.dropna(subset=["Inici", "Final"]).copy()
+    
+    if not df_net.empty:
+        df_net["Projecte"] = df_net["Projecte"].astype(str).str.strip()
+        df_net["Responsable"] = df_net["Responsable"].astype(str).str.strip()
 
-with col_nav1:
-    if st.button("⬅️ Mes Anterior"):
-        if st.session_state.mes_vista == 1:
-            st.session_state.mes_vista = 12
-            st.session_state.any_vista -= 1
+        df_net["Final_Grafic"] = pd.to_datetime(df_net["Final"])
+        df_net["Inici_Grafic"] = pd.to_datetime(df_net["Inici"])
+        
+        mask_mismo_dia = df_net["Inici_Grafic"] == df_net["Final_Grafic"]
+        df_net.loc[mask_mismo_dia, "Final_Grafic"] = df_net.loc[mask_mismo_dia, "Final_Grafic"] + pd.Timedelta(days=1)
+
+        estil_grafic = st.radio(
+            "Tria l'estil de visualització:", 
+            ["Vista per Personal (Estil Recursos)", "Vista per Projectes (Estil Gantt)"], 
+            horizontal=True
+        )
+        
+        df_net = df_net.sort_values(by=["Departament", "Responsable"], ascending=[False, False])
+        
+        df_net["Categoria_Color"] = df_net.apply(
+            lambda row: "Vacances" if "vacances" in str(row["Projecte"]).lower() 
+            else (row["Projecte"] if estil_grafic == "Vista per Personal (Estil Recursos)" else row["Responsable"]),
+            axis=1
+        )
+        
+        mapa_colors = {"Vacances": "dimgray"}
+        
+        if estil_grafic == "Vista per Personal (Estil Recursos)":
+            fig = px.timeline(
+                df_net, 
+                x_start="Inici_Grafic", 
+                x_end="Final_Grafic", 
+                y="Responsable", 
+                color="Categoria_Color", 
+                color_discrete_map=mapa_colors,
+                hover_data=["Projecte", "Departament", "Documents"],
+                text="Projecte"
+            )
+            fig.update_traces(textposition='inside', insidetextanchor='middle')
         else:
-            st.session_state.mes_vista -= 1
-        st.rerun()
-
-with col_nav2:
-    st.markdown(f"<h4 style='text-align: center;'>{nom_mes_actual.upper()} {st.session_state.any_vista}</h4>", unsafe_allow_html=True)
-
-with col_nav3:
-    if st.button("Mes Següent ➡️"):
-        if st.session_state.mes_vista == 12:
-            st.session_state.mes_vista = 1
-            st.session_state.any_vista += 1
-        else:
-            st.session_state.mes_vista += 1
-        st.rerun()
-
-# --- OPIONS DE VISUALITZACIÓ ---
-estil_vista = st.radio(
-    "Tria l'estil de visualització:",
-    ["Vista per Personal (Estil Recursos)", "Vista per Projectes (Estil Gantt)"],
-    horizontal=True
-)
-
-if not df_filtrat.empty:
-    df_gantt = df_filtrat.copy()
-    df_gantt["Inici"] = pd.to_datetime(df_gantt["Inici"])
-    df_gantt["Final"] = pd.to_datetime(df_gantt["Final"])
-    
-    # Ajustem la visualització segons l'opció triada
-    eix_y = "Responsable" if "Personal" in estil_vista else "Projecte"
-    
-    fig_gantt = px.timeline(
-        df_gantt,
-        x_start="Inici",
-        x_end="Final",
-        y=eix_y,
-        color="Projecte",
-        hover_data=["Departament", "Responsable", "Projecte"]
-    )
-    
-    fig_gantt.update_yaxes(autorange="reversed")
-    fig_gantt.update_layout(
-        height=max(400, len(df_gantt[eix_y].unique()) * 35), 
-        plot_bgcolor='white',
-        margin=dict(t=10, b=10)
-    )
-    st.plotly_chart(fig_gantt, use_container_width=True)
+            fig = px.timeline(
+                df_net, 
+                x_start="Inici_Grafic", 
+                x_end="Final_Grafic", 
+                y="Projecte", 
+                color="Categoria_Color",
+                color_discrete_map=mapa_colors, 
+                hover_data=["Responsable", "Departament", "Documents"]
+            )
+        
+        # BARRES TRANSLÚCIDES AMB VORA PER MARCAR ELS DELIMITADORS DE SOLAPAMENT
+        fig.update_traces(
+            width=0.65, 
+            opacity=0.60,
+            marker_line_color="black",
+            marker_line_width=2
+        )
+        
+        fig.update_layout(
+            barmode="overlay",
+            plot_bgcolor='white',
+            xaxis=dict(
+                showgrid=True, 
+                gridcolor='lightgray', 
+                gridwidth=1,
+                title=f"<b>MES DE {nom_mes_actual.upper()} {st.session_state.any_vista}</b>",
+                side="top"
+            ),
+            yaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1),
+            height=max(400, len(df_net["Responsable"].unique()) * 65 + 150) if estil_grafic == "Vista per Personal (Estil Recursos)" else 500,
+            showlegend=True,
+            legend_title_text='Llegenda'
+        )
+        
+        data_inici_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-01"
+        data_final_text = f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}-{ultim_dia}"
+        
+        fig.update_xaxes(
+            range=[data_inici_text, data_final_text],
+            tickformat="%d %b", 
+            dtick=86400000     
+        )
+        
+        dies_del_mes = pd.date_range(start=data_inici_text, end=data_final_text)
+        
+        caps_de_setmana = dies_del_mes[dies_del_mes.weekday.isin([5, 6])]
+        for dia in caps_de_setmana:
+            fig.add_vrect(
+                x0=dia, x1=dia + pd.Timedelta(days=1), 
+                fillcolor="lightgray", opacity=0.4, layer="below", line_width=0
+            )
+            
+        for festiu_dt in festius_np:
+            if str(festiu_dt)[:7] == f"{st.session_state.any_vista}-{st.session_state.mes_vista:02d}":
+                f_inici = pd.to_datetime(festiu_dt)
+                f_final = f_inici + pd.Timedelta(days=1)
+                
+                fig.add_vrect(
+                    x0=f_inici, x1=f_final, 
+                    fillcolor="dimgray", opacity=0.6, layer="below", line_width=0,
+                    annotation_text="FESTIU", annotation_position="top right"
+                )
+        
+        dilluns_mes = dies_del_mes[dies_del_mes.weekday == 0]
+        for dilluns in dilluns_mes:
+            num_setmana = dilluns.isocalendar().week
+            fig.add_vline(x=dilluns, line_width=2, line_color="black")
+            fig.add_annotation(
+                x=dilluns,
+                y=1,
+                yref="paper",
+                text=f"<b>S{num_setmana}</b>",
+                showarrow=False,
+                yshift=15,
+                font=dict(size=12, color="black")
+            )
+            
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Has de posar dates d'inici i final a les ofertes per veure-les al calendari.")
 else:
-    st.info("No hi ha dades per mostrar al calendari amb els filtres seleccionats per a aquest mes.")
+    st.warning("No hi ha cap oferta que es pugui visualitzar. Afegeix-ne una al menú lateral.")
 
 
 # 8. TAULA EDITABLE PER DEPARTAMENTS
